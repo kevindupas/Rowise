@@ -3,6 +3,32 @@ import { persist } from "zustand/middleware";
 import { invoke } from "@tauri-apps/api/core";
 import type { QueryResult } from "../components/DataGrid";
 
+export interface ColumnInfo {
+  name: string;
+  type_name: string;
+  is_geo: boolean;
+  is_primary_key: boolean;
+  is_nullable: boolean;
+  column_default: string | null;
+  is_foreign_key: boolean;
+  fk_table: string | null;
+  fk_column: string | null;
+  fk_schema: string | null;
+}
+
+export interface IndexInfo {
+  name: string;
+  is_unique: boolean;
+  is_primary: boolean;
+  columns: string[];
+  index_type: string;
+}
+
+export interface TableSchema {
+  columns: ColumnInfo[];
+  indexes: IndexInfo[];
+}
+
 export type FilterOperator =
   | "=" | "<>" | "<" | ">" | "<=" | ">="
   | "IN" | "NOT IN"
@@ -22,6 +48,13 @@ export interface FilterRule {
   value2: string;
 }
 
+export type CellPrimitive = string | number | boolean | null;
+
+export type PendingChange =
+  | { kind: "update"; rowIndex: number; col: string; newValue: CellPrimitive }
+  | { kind: "delete"; rowIndices: number[] }
+  | { kind: "insert"; tempId: string; values: Record<string, CellPrimitive> };
+
 export interface Tab {
   id: string;
   connectionId: string;
@@ -30,7 +63,10 @@ export interface Tab {
   label: string;
   sql: string;
   result: QueryResult | null;
+  tableSchema: TableSchema | null;
   selectedRowIndex: number | null;
+  selectedRowIndices: number[];
+  pendingChanges: PendingChange[];
   loading: boolean;
   error: string | null;
   filters: FilterRule[];
@@ -44,7 +80,7 @@ interface TabStore {
   tabs: Tab[];
   activeTabId: string | null;
   showDetailPanel: boolean;
-  openTab: (connectionId: string, schema: string, table: string) => void;
+  openTab: (connectionId: string, schema: string, table: string, initialFilter?: { column: string; value: string }) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   updateTab: (id: string, partial: Partial<Tab>) => void;
@@ -58,6 +94,13 @@ interface TabStore {
   setLimit: (tabId: string, limit: number) => void;
   nextPage: (tabId: string) => void;
   prevPage: (tabId: string) => void;
+  loadTableSchema: (tabId: string) => Promise<void>;
+  setPendingUpdate: (tabId: string, rowIndex: number, col: string, newValue: CellPrimitive) => void;
+  setPendingDelete: (tabId: string, rowIndices: number[]) => void;
+  addPendingInsert: (tabId: string) => void;
+  clearPendingChanges: (tabId: string) => void;
+  commitChanges: (tabId: string) => Promise<void>;
+  setSelectedRows: (tabId: string, indices: number[]) => void;
 }
 
 function buildWhereClause(filters: FilterRule[]): string {
@@ -95,7 +138,7 @@ export const useTabStore = create<TabStore>()(
   activeTabId: null,
   showDetailPanel: true,
 
-  openTab: (connectionId, schema, table) => {
+  openTab: (connectionId, schema, table, initialFilter) => {
     const existing = get().tabs.find(
       (t) =>
         t.connectionId === connectionId &&
@@ -104,11 +147,25 @@ export const useTabStore = create<TabStore>()(
     );
     if (existing) {
       set({ activeTabId: existing.id });
+      if (initialFilter) {
+        const filter: FilterRule = {
+          id: crypto.randomUUID(),
+          column: initialFilter.column,
+          operator: "=",
+          value: initialFilter.value,
+          value2: "",
+        };
+        get().updateTab(existing.id, { filters: [filter], offset: 0, showFilterBar: true });
+        get().runTabQuery(existing.id);
+      }
       return;
     }
 
     const id = crypto.randomUUID();
     const sql = `SELECT * FROM "${schema}"."${table}"`;
+    const filters: FilterRule[] = initialFilter
+      ? [{ id: crypto.randomUUID(), column: initialFilter.column, operator: "=", value: initialFilter.value, value2: "" }]
+      : [];
     const tab: Tab = {
       id,
       connectionId,
@@ -117,11 +174,14 @@ export const useTabStore = create<TabStore>()(
       label: `${schema}.${table}`,
       sql,
       result: null,
+      tableSchema: null,
       selectedRowIndex: null,
+      selectedRowIndices: [],
+      pendingChanges: [],
       loading: false,
       error: null,
-      filters: [],
-      showFilterBar: false,
+      filters,
+      showFilterBar: initialFilter != null,
       sqlMode: false,
       limit: 300,
       offset: 0,
@@ -133,6 +193,7 @@ export const useTabStore = create<TabStore>()(
     }));
 
     get().runTabQuery(id);
+    get().loadTableSchema(id);
   },
 
   closeTab: (id) => {
@@ -202,14 +263,16 @@ export const useTabStore = create<TabStore>()(
     }));
   },
 
-  removeFilter: (tabId, filterId) =>
+  removeFilter: (tabId, filterId) => {
     set((state) => ({
       tabs: state.tabs.map((t) =>
         t.id === tabId
           ? { ...t, filters: t.filters.filter((f) => f.id !== filterId) }
           : t
       ),
-    })),
+    }));
+    get().runTabQuery(tabId);
+  },
 
   updateFilter: (tabId, filterId, partial) =>
     set((state) => ({
@@ -273,6 +336,162 @@ export const useTabStore = create<TabStore>()(
     }));
     get().runTabQuery(tabId);
   },
+
+  loadTableSchema: async (tabId) => {
+    const tab = get().tabs.find((t) => t.id === tabId);
+    if (!tab || tab.sqlMode) return;
+    try {
+      const tableSchema = await invoke<TableSchema>("get_table_schema", {
+        connectionId: tab.connectionId,
+        schema: tab.schema,
+        table: tab.table,
+      });
+      get().updateTab(tabId, { tableSchema });
+    } catch {
+      // non-fatal — structure view will show error, FK arrows just won't appear
+    }
+  },
+
+  setSelectedRows: (tabId, indices) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId ? { ...t, selectedRowIndices: indices } : t
+      ),
+    })),
+
+  setPendingUpdate: (tabId, rowIndex, col, newValue) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) => {
+        if (t.id !== tabId) return t;
+        // Replace existing update for same row+col, or append
+        const existing = t.pendingChanges.findIndex(
+          (c) => c.kind === "update" && c.rowIndex === rowIndex && c.col === col
+        );
+        const change: PendingChange = { kind: "update", rowIndex, col, newValue };
+        const pendingChanges = existing >= 0
+          ? t.pendingChanges.map((c, i) => (i === existing ? change : c))
+          : [...t.pendingChanges, change];
+        return { ...t, pendingChanges };
+      }),
+    })),
+
+  setPendingDelete: (tabId, rowIndices) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) => {
+        if (t.id !== tabId) return t;
+        // Remove any existing delete, replace with new set
+        const withoutDelete = t.pendingChanges.filter((c) => c.kind !== "delete");
+        const change: PendingChange = { kind: "delete", rowIndices };
+        return { ...t, pendingChanges: [...withoutDelete, change] };
+      }),
+    })),
+
+  addPendingInsert: (tabId) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) => {
+        if (t.id !== tabId) return t;
+        const change: PendingChange = {
+          kind: "insert",
+          tempId: crypto.randomUUID(),
+          values: {},
+        };
+        return { ...t, pendingChanges: [...t.pendingChanges, change] };
+      }),
+    })),
+
+  clearPendingChanges: (tabId) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId ? { ...t, pendingChanges: [], selectedRowIndices: [] } : t
+      ),
+    })),
+
+  commitChanges: async (tabId) => {
+    const tab = get().tabs.find((t) => t.id === tabId);
+    if (!tab || !tab.result || tab.pendingChanges.length === 0) return;
+
+    const pkCol = tab.tableSchema?.columns.find((c) => c.is_primary_key);
+    if (!pkCol) {
+      get().updateTab(tabId, { error: "No primary key — cannot commit changes" });
+      return;
+    }
+
+    const pkColIndex = tab.result.columns.findIndex((c) => c.name === pkCol.name);
+
+    interface WireStatement { sql: string; params: unknown[] }
+    const statements: WireStatement[] = [];
+
+    // Group updates by rowIndex
+    const updatesByRow = new Map<number, { col: string; newValue: CellPrimitive }[]>();
+    for (const change of tab.pendingChanges) {
+      if (change.kind === "update") {
+        const list = updatesByRow.get(change.rowIndex) ?? [];
+        list.push({ col: change.col, newValue: change.newValue });
+        updatesByRow.set(change.rowIndex, list);
+      }
+    }
+
+    // Use ? placeholders universally — Rust rewrites to $N for PostgreSQL.
+    function placeholder(_n: number) {
+      return "?";
+    }
+
+    for (const [rowIndex, cols] of updatesByRow) {
+      const pkCellRaw = tab.result.rows[rowIndex]?.[pkColIndex];
+      if (!pkCellRaw) continue;
+      const pkValue = pkCellRaw.type !== "Null" ? (pkCellRaw as { type: string; value: CellPrimitive }).value : null;
+      if (pkValue === null) continue;
+
+      const setClauses = cols.map((c, i) => `"${c.col}" = ${placeholder(i + 1)}`).join(", ");
+      const pkPlaceholder = placeholder(cols.length + 1);
+      const sql = `UPDATE "${tab.schema}"."${tab.table}" SET ${setClauses} WHERE "${pkCol.name}" = ${pkPlaceholder}`;
+      const params = [...cols.map((c) => c.newValue), pkValue];
+      statements.push({ sql, params });
+    }
+
+    // Deletes
+    for (const change of tab.pendingChanges) {
+      if (change.kind === "delete") {
+        const pkValues = change.rowIndices
+          .map((ri) => {
+            const cell = tab.result!.rows[ri]?.[pkColIndex];
+            if (!cell || cell.type === "Null") return null;
+            return (cell as { type: string; value: CellPrimitive }).value;
+          })
+          .filter((v): v is CellPrimitive => v !== null);
+        if (pkValues.length === 0) continue;
+        const placeholders = pkValues.map((_, i) => placeholder(i + 1)).join(", ");
+        const sql = `DELETE FROM "${tab.schema}"."${tab.table}" WHERE "${pkCol.name}" IN (${placeholders})`;
+        statements.push({ sql, params: pkValues });
+      }
+    }
+
+    // Inserts
+    for (const change of tab.pendingChanges) {
+      if (change.kind === "insert") {
+        const entries = Object.entries(change.values).filter(([, v]) => v !== undefined);
+        if (entries.length === 0) continue;
+        const cols = entries.map(([k]) => `"${k}"`).join(", ");
+        const placeholders = entries.map((_, i) => placeholder(i + 1)).join(", ");
+        const sql = `INSERT INTO "${tab.schema}"."${tab.table}" (${cols}) VALUES (${placeholders})`;
+        statements.push({ sql, params: entries.map(([, v]) => v) });
+      }
+    }
+
+    if (statements.length === 0) {
+      get().clearPendingChanges(tabId);
+      return;
+    }
+
+    get().updateTab(tabId, { loading: true, error: null });
+    try {
+      await invoke("execute_write", { connectionId: tab.connectionId, statements });
+      get().clearPendingChanges(tabId);
+      await get().runTabQuery(tabId);
+    } catch (e) {
+      get().updateTab(tabId, { error: String(e), loading: false });
+    }
+  },
 }),
     {
       name: "tablelike-tabs",
@@ -280,9 +499,12 @@ export const useTabStore = create<TabStore>()(
         tabs: state.tabs.map((t) => ({
           ...t,
           result: null,
+          tableSchema: null,
           loading: false,
           error: null,
           selectedRowIndex: null,
+          selectedRowIndices: [],
+          pendingChanges: [],
         })),
         activeTabId: state.activeTabId,
         showDetailPanel: state.showDetailPanel,

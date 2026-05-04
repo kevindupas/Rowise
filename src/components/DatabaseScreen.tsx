@@ -1,4 +1,4 @@
-import { ArrowLeft, Code, PanelRight, Moon, Sun, Monitor } from "lucide-react";
+import { ArrowLeft, Code, PanelRight, Moon, Sun, Monitor, RefreshCw } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "./ui/button";
 import { SchemaTree } from "./SchemaTree";
@@ -10,7 +10,7 @@ import { useTabStore } from "../store/tabs";
 export function DatabaseScreen() {
   const { connections, activeConnectionId, setConnected } =
     useConnectionStore();
-  const { tabs, activeTabId, showDetailPanel, toggleDetailPanel, toggleSqlMode, openTab } = useTabStore();
+  const { tabs, activeTabId, showDetailPanel, toggleDetailPanel, toggleSqlMode, openTab, runTabQuery } = useTabStore();
   const { theme, setTheme } = useTheme();
 
   const activeConn = connections.find((c) => c.id === activeConnectionId) ?? null;
@@ -70,16 +70,27 @@ export function DatabaseScreen() {
 
         <div className="ml-auto flex items-center gap-1">
           {activeTab && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className={`h-7 w-7 ${activeTab.sqlMode ? "text-foreground" : "text-muted-foreground"}`}
-              onClick={() => toggleSqlMode(activeTab.id)}
-              title="Toggle SQL editor"
-              aria-pressed={activeTab.sqlMode}
-            >
-              <Code className="h-4 w-4" />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => runTabQuery(activeTab.id)}
+                title="Refresh (⌘R)"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-7 w-7 ${activeTab.sqlMode ? "text-foreground" : "text-muted-foreground"}`}
+                onClick={() => toggleSqlMode(activeTab.id)}
+                title="Toggle SQL editor"
+                aria-pressed={activeTab.sqlMode}
+              >
+                <Code className="h-4 w-4" />
+              </Button>
+            </>
           )}
           <Button
             variant="ghost"

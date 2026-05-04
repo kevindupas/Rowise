@@ -36,6 +36,28 @@ pub struct ColumnInfo {
     pub name: String,
     pub type_name: String,
     pub is_geo: bool,
+    pub is_primary_key: bool,
+    pub is_nullable: bool,
+    pub column_default: Option<String>,
+    pub is_foreign_key: bool,
+    pub fk_table: Option<String>,
+    pub fk_column: Option<String>,
+    pub fk_schema: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexInfo {
+    pub name: String,
+    pub is_unique: bool,
+    pub is_primary: bool,
+    pub columns: Vec<String>,
+    pub index_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TableSchema {
+    pub columns: Vec<ColumnInfo>,
+    pub indexes: Vec<IndexInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,4 +82,10 @@ pub struct QueryResult {
     pub rows: Vec<Vec<CellValue>>,
     pub total_count: Option<i64>,
     pub execution_time_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WriteStatement {
+    pub sql: String,
+    pub params: Vec<serde_json::Value>,
 }

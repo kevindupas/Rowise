@@ -1,6 +1,6 @@
 use tauri::State;
 use crate::db::connection::ConnectionManager;
-use crate::db::types::{ConnectionConfig, QueryResult};
+use crate::db::types::{ConnectionConfig, QueryResult, TableSchema, WriteStatement};
 use crate::db::schema;
 use crate::db::query;
 
@@ -82,6 +82,205 @@ pub async fn get_tables(
             schema::get_tables_sqlite(&pool).await
         }
         _ => Err("Unknown DB type".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn get_table_schema(
+    connection_id: String,
+    schema: String,
+    table: String,
+    manager: State<'_, ConnectionManager>,
+) -> Result<TableSchema, String> {
+    let db_type = manager
+        .get_db_type(&connection_id)
+        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+
+    match db_type.as_str() {
+        "postgresql" => {
+            let pool = manager
+                .get_pg_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            crate::db::schema::get_table_schema_pg(&pool, &schema, &table).await
+        }
+        "mysql" => {
+            let pool = manager
+                .get_mysql_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            crate::db::schema::get_table_schema_mysql(&pool, &schema, &table).await
+        }
+        "sqlite" => {
+            let pool = manager
+                .get_sqlite_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            crate::db::schema::get_table_schema_sqlite(&pool, &table).await
+        }
+        _ => Err("Unknown DB type".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn execute_write(
+    connection_id: String,
+    statements: Vec<WriteStatement>,
+    manager: State<'_, ConnectionManager>,
+) -> Result<Vec<u64>, String> {
+    let db_type = manager
+        .get_db_type(&connection_id)
+        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+
+    match db_type.as_str() {
+        "postgresql" => {
+            let pool = manager
+                .get_pg_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            execute_write_pg(&pool, &statements).await
+        }
+        "mysql" => {
+            let pool = manager
+                .get_mysql_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            execute_write_mysql(&pool, &statements).await
+        }
+        "sqlite" => {
+            let pool = manager
+                .get_sqlite_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            execute_write_sqlite(&pool, &statements).await
+        }
+        _ => Err("Unknown DB type".to_string()),
+    }
+}
+
+fn rewrite_placeholders_pg(sql: &str) -> String {
+    let mut result = String::with_capacity(sql.len() + 16);
+    let mut n = 1usize;
+    for c in sql.chars() {
+        if c == '?' {
+            result.push_str(&format!("${n}"));
+            n += 1;
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+async fn execute_write_pg(
+    pool: &sqlx::PgPool,
+    statements: &[WriteStatement],
+) -> Result<Vec<u64>, String> {
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    let mut affected: Vec<u64> = Vec::new();
+
+    for stmt in statements {
+        let rewritten = rewrite_placeholders_pg(&stmt.sql);
+        let mut q = sqlx::query(&rewritten);
+        for p in &stmt.params {
+            q = bind_pg_param(q, p);
+        }
+        let res = q.execute(&mut *tx).await.map_err(|e| e.to_string())?;
+        affected.push(res.rows_affected());
+    }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(affected)
+}
+
+fn bind_pg_param<'q>(
+    q: sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>,
+    v: &'q serde_json::Value,
+) -> sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments> {
+    match v {
+        serde_json::Value::Null => q.bind(Option::<String>::None),
+        serde_json::Value::Bool(b) => q.bind(b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                q.bind(i)
+            } else {
+                q.bind(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        serde_json::Value::String(s) => q.bind(s.as_str()),
+        other => q.bind(other.to_string()),
+    }
+}
+
+async fn execute_write_sqlite(
+    pool: &sqlx::SqlitePool,
+    statements: &[WriteStatement],
+) -> Result<Vec<u64>, String> {
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    let mut affected: Vec<u64> = Vec::new();
+
+    for stmt in statements {
+        let mut q = sqlx::query(&stmt.sql);
+        for p in &stmt.params {
+            q = bind_sqlite_param(q, p);
+        }
+        let res = q.execute(&mut *tx).await.map_err(|e| e.to_string())?;
+        affected.push(res.rows_affected());
+    }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(affected)
+}
+
+fn bind_sqlite_param<'q>(
+    q: sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>>,
+    v: &'q serde_json::Value,
+) -> sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>> {
+    match v {
+        serde_json::Value::Null => q.bind(Option::<String>::None),
+        serde_json::Value::Bool(b) => q.bind(*b as i64),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                q.bind(i)
+            } else {
+                q.bind(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        serde_json::Value::String(s) => q.bind(s.as_str()),
+        other => q.bind(other.to_string()),
+    }
+}
+
+async fn execute_write_mysql(
+    pool: &sqlx::MySqlPool,
+    statements: &[WriteStatement],
+) -> Result<Vec<u64>, String> {
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    let mut affected: Vec<u64> = Vec::new();
+
+    for stmt in statements {
+        let mut q = sqlx::query(&stmt.sql);
+        for p in &stmt.params {
+            q = bind_mysql_param(q, p);
+        }
+        let res = q.execute(&mut *tx).await.map_err(|e| e.to_string())?;
+        affected.push(res.rows_affected());
+    }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(affected)
+}
+
+fn bind_mysql_param<'q>(
+    q: sqlx::query::Query<'q, sqlx::MySql, sqlx::mysql::MySqlArguments>,
+    v: &'q serde_json::Value,
+) -> sqlx::query::Query<'q, sqlx::MySql, sqlx::mysql::MySqlArguments> {
+    match v {
+        serde_json::Value::Null => q.bind(Option::<String>::None),
+        serde_json::Value::Bool(b) => q.bind(*b as i64),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                q.bind(i)
+            } else {
+                q.bind(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        serde_json::Value::String(s) => q.bind(s.as_str()),
+        other => q.bind(other.to_string()),
     }
 }
 

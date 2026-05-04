@@ -84,9 +84,26 @@ pub async fn execute_pg(
         .await
         .map_err(|e| e.to_string())?;
 
+    let count_sql = format!("SELECT COUNT(*) FROM ({}) AS _count_q", trimmed);
+    let total_count: Option<i64> = sqlx::query_scalar(&count_sql)
+        .fetch_one(pool)
+        .await
+        .ok();
+
     let columns: Vec<ColumnInfo> = col_meta
         .into_iter()
-        .map(|(name, type_name, is_geo)| ColumnInfo { name, type_name, is_geo })
+        .map(|(name, type_name, is_geo)| ColumnInfo {
+            name,
+            type_name,
+            is_geo,
+            is_primary_key: false,
+            is_nullable: true,
+            column_default: None,
+            is_foreign_key: false,
+            fk_table: None,
+            fk_column: None,
+            fk_schema: None,
+        })
         .collect();
 
     let result_rows: Vec<Vec<CellValue>> = rows
@@ -168,7 +185,7 @@ pub async fn execute_pg(
     Ok(QueryResult {
         columns,
         rows: result_rows,
-        total_count: None,
+        total_count,
         execution_time_ms: start.elapsed().as_millis() as u64,
     })
 }
@@ -197,6 +214,13 @@ pub async fn execute_sqlite(
                 name: c.name().to_string(),
                 type_name: c.type_info().name().to_string(),
                 is_geo: false,
+                is_primary_key: false,
+                is_nullable: true,
+                column_default: None,
+                is_foreign_key: false,
+                fk_table: None,
+                fk_column: None,
+                fk_schema: None,
             })
             .collect()
     } else {
@@ -223,10 +247,16 @@ pub async fn execute_sqlite(
         })
         .collect();
 
+    let count_sql = format!("SELECT COUNT(*) FROM ({}) AS _count_q", trimmed);
+    let total_count: Option<i64> = sqlx::query_scalar(&count_sql)
+        .fetch_one(pool)
+        .await
+        .ok();
+
     Ok(QueryResult {
         columns,
         rows: result_rows,
-        total_count: None,
+        total_count,
         execution_time_ms: start.elapsed().as_millis() as u64,
     })
 }
@@ -255,6 +285,13 @@ pub async fn execute_mysql(
                 name: c.name().to_string(),
                 type_name: c.type_info().name().to_string(),
                 is_geo: false,
+                is_primary_key: false,
+                is_nullable: true,
+                column_default: None,
+                is_foreign_key: false,
+                fk_table: None,
+                fk_column: None,
+                fk_schema: None,
             })
             .collect()
     } else {
@@ -284,10 +321,16 @@ pub async fn execute_mysql(
         })
         .collect();
 
+    let count_sql = format!("SELECT COUNT(*) FROM ({}) AS _count_q", trimmed);
+    let total_count: Option<i64> = sqlx::query_scalar(&count_sql)
+        .fetch_one(pool)
+        .await
+        .ok();
+
     Ok(QueryResult {
         columns,
         rows: result_rows,
-        total_count: None,
+        total_count,
         execution_time_ms: start.elapsed().as_millis() as u64,
     })
 }

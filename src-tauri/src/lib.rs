@@ -17,6 +17,8 @@ pub fn run() {
             commands::disconnect_db,
             commands::check_connection,
             commands::get_tables,
+            commands::get_table_schema,
+            commands::execute_write,
             commands::execute_query,
             commands::save_password,
             commands::get_password,

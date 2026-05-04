@@ -9,9 +9,15 @@ interface Props {
   tabId: string;
   activeView: "data" | "structure";
   onViewChange: (v: "data" | "structure") => void;
+  onAddRow?: () => void;
+  onShowMap?: () => void;
+  hasGeo?: boolean;
+  selectedCount?: number;
+  totalRowCount?: number | null;
+  canEdit?: boolean;
 }
 
-export function BottomBar({ tabId, activeView, onViewChange }: Props) {
+export function BottomBar({ tabId, activeView, onViewChange, onAddRow, onShowMap, hasGeo, selectedCount, totalRowCount, canEdit }: Props) {
   const { tabs, toggleFilterBar, nextPage, prevPage, setLimit } = useTabStore();
   const [limitOpen, setLimitOpen] = useState(false);
   const tab = tabs.find((t) => t.id === tabId);
@@ -19,16 +25,15 @@ export function BottomBar({ tabId, activeView, onViewChange }: Props) {
 
   const rowCount = tab.result?.rows.length ?? 0;
   const totalCount = tab.result?.total_count ?? null;
-  const currentPage = tab.limit > 0 ? Math.floor(tab.offset / tab.limit) + 1 : 1;
   const hasPrev = tab.offset > 0;
   const hasNext = tab.limit > 0 && (totalCount !== null
     ? tab.offset + tab.limit < totalCount
     : tab.result !== null && tab.result.rows.length === tab.limit);
 
   return (
-    <div className="h-8 border-t flex items-center justify-between px-3 shrink-0 bg-muted/10 text-xs">
-      {/* Left: Data / Structure tabs */}
-      <div className="flex items-center gap-0">
+    <div className="h-8 border-t flex items-center justify-between px-0 shrink-0 bg-muted/10 text-xs relative">
+      {/* Left: Data / Structure + Add row + Show map */}
+      <div className="flex items-center">
         <button
           className={`px-3 h-8 border-r transition-colors ${
             activeView === "data"
@@ -49,10 +54,43 @@ export function BottomBar({ tabId, activeView, onViewChange }: Props) {
         >
           Structure
         </button>
+
+        {activeView === "data" && canEdit && onAddRow && (
+          <button
+            onClick={onAddRow}
+            className="px-3 h-8 border-r text-green-500 hover:text-green-400 transition-colors"
+            title="Add row"
+          >
+            + Add row
+          </button>
+        )}
+
+        {activeView === "data" && hasGeo && onShowMap && (
+          <button
+            onClick={onShowMap}
+            className="px-3 h-8 border-r text-blue-500 hover:text-blue-400 transition-colors"
+          >
+            🌍 Show on Map
+          </button>
+        )}
+
+        {/* Selected rows info */}
       </div>
 
+      {/* Center: range or selection info */}
+      {activeView === "data" && (
+        <span className="absolute left-1/2 -translate-x-1/2 text-muted-foreground pointer-events-none">
+          {selectedCount && selectedCount > 0
+            ? `${selectedCount} of ${totalRowCount ?? rowCount} selected`
+            : totalRowCount != null
+              ? `${tab.offset + 1}–${tab.offset + rowCount} of ${totalRowCount.toLocaleString()} rows`
+              : `${rowCount} rows`
+          }
+        </span>
+      )}
+
       {/* Right: Filters + pagination */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 px-2">
         <button
           className={`px-2 h-6 rounded transition-colors text-xs ${
             tab.showFilterBar
@@ -77,7 +115,6 @@ export function BottomBar({ tabId, activeView, onViewChange }: Props) {
           <ChevronLeft className="h-3.5 w-3.5" />
         </Button>
 
-        {/* Limit settings — controlled popover */}
         <div className="relative">
           <button
             className="h-6 px-1.5 rounded text-muted-foreground hover:text-foreground flex items-center gap-0.5"
@@ -120,13 +157,6 @@ export function BottomBar({ tabId, activeView, onViewChange }: Props) {
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
 
-        <div className="w-px h-4 bg-border mx-1" />
-
-        <span className="text-muted-foreground tabular-nums">
-          {rowCount}{" rows"}
-          {totalCount !== null && totalCount !== rowCount ? ` / ${totalCount}` : ""}
-          {tab.offset > 0 ? ` · p${currentPage}` : ""}
-        </span>
       </div>
     </div>
   );
