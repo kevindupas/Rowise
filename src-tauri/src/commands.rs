@@ -120,6 +120,40 @@ pub async fn get_table_schema(
 }
 
 #[tauri::command]
+pub async fn get_table_stats(
+    connection_id: String,
+    schema: String,
+    table: String,
+    manager: State<'_, ConnectionManager>,
+) -> Result<crate::db::schema::TableStats, String> {
+    let db_type = manager
+        .get_db_type(&connection_id)
+        .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+
+    match db_type.as_str() {
+        "postgresql" => {
+            let pool = manager
+                .get_pg_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            crate::db::schema::get_table_stats_pg(&pool, &schema, &table).await
+        }
+        "mysql" => {
+            let pool = manager
+                .get_mysql_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            crate::db::schema::get_table_stats_mysql(&pool, &schema, &table).await
+        }
+        "sqlite" => {
+            let pool = manager
+                .get_sqlite_pool(&connection_id)
+                .ok_or_else(|| format!("Connection '{}' not found", connection_id))?;
+            crate::db::schema::get_table_stats_sqlite(&pool, &table).await
+        }
+        _ => Err("Unknown DB type".to_string()),
+    }
+}
+
+#[tauri::command]
 pub async fn execute_write(
     connection_id: String,
     statements: Vec<WriteStatement>,
@@ -586,6 +620,95 @@ async fn fetch_server_version_pg_or_mysql(
             Ok(version)
         }
         DbType::Sqlite => Ok("3".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn get_tls_info(
+    config: crate::db::types::ConnectionConfig,
+) -> Result<Option<String>, String> {
+    use crate::db::types::DbType;
+
+    if matches!(config.db_type, DbType::Sqlite) {
+        return Ok(None);
+    }
+
+    if config.ssh_host.is_some() {
+        let backend = config.ssh_backend.as_deref().unwrap_or("russh");
+        if backend == "openssh" {
+            let tunnel = crate::db::ssh_tunnel::OpenSshTunnel::connect(&config)
+                .await
+                .map_err(|e| format!("SSH tunnel: {e}"))?;
+            let port = tunnel.local_port;
+            let result = fetch_tls_info_inner(&config, "127.0.0.1", port).await;
+            drop(tunnel);
+            return result;
+        } else {
+            let tunnel = crate::db::ssh_tunnel::SshTunnel::connect(&config)
+                .await
+                .map_err(|e| format!("SSH tunnel: {e}"))?;
+            let port = tunnel.local_port;
+            let result = fetch_tls_info_inner(&config, "127.0.0.1", port).await;
+            drop(tunnel);
+            return result;
+        }
+    }
+
+    fetch_tls_info_inner(&config, &config.host, config.port).await
+}
+
+async fn fetch_tls_info_inner(
+    config: &crate::db::types::ConnectionConfig,
+    host: &str,
+    port: u16,
+) -> Result<Option<String>, String> {
+    use crate::db::types::DbType;
+    use sqlx::Row;
+
+    match config.db_type {
+        DbType::Postgresql => {
+            use sqlx::postgres::PgConnectOptions;
+            let opts = PgConnectOptions::new()
+                .host(host)
+                .port(port)
+                .username(&config.username)
+                .password(&config.password)
+                .database(&config.database);
+            let pool = sqlx::postgres::PgPoolOptions::new()
+                .max_connections(1)
+                .connect_with(opts)
+                .await
+                .map_err(|e| e.to_string())?;
+            let row = sqlx::query(
+                "SELECT version FROM pg_stat_ssl WHERE pid = pg_backend_pid()"
+            )
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(row.map(|r| r.get::<String, _>(0)))
+        }
+        DbType::Mysql => {
+            use sqlx::mysql::MySqlConnectOptions;
+            let opts = MySqlConnectOptions::new()
+                .host(host)
+                .port(port)
+                .username(&config.username)
+                .password(&config.password);
+            let pool = sqlx::mysql::MySqlPoolOptions::new()
+                .max_connections(1)
+                .connect_with(opts)
+                .await
+                .map_err(|e| e.to_string())?;
+            let row = sqlx::query("SHOW SESSION STATUS LIKE 'Ssl_version'")
+                .fetch_optional(&pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(row.and_then(|r| {
+                let v: String = r.get(1);
+                if v.is_empty() { None } else { Some(v) }
+            }))
+        }
+        DbType::Sqlite => Ok(None),
     }
 }
 
