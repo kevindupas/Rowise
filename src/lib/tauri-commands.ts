@@ -96,6 +96,10 @@ export async function getServerVersion(config: BackupRestoreConfig): Promise<str
   return invoke<string>("get_server_version", { config });
 }
 
+export async function getTlsInfo(config: BackupRestoreConfig): Promise<string | null> {
+  return invoke<string | null>("get_tls_info", { config });
+}
+
 export async function startBackup(
   config: BackupRestoreConfig,
   database: string,
