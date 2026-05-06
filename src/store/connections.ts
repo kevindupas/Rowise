@@ -54,6 +54,8 @@ export interface Connection {
   color: string;
   groupId?: string;
   tagId?: string;
+  serverVersion?: string;
+  tlsVersion?: string | null;
   ssh?: SshConfig;
   passwordMode: PasswordMode;
   sslMode: SslMode;
@@ -90,6 +92,7 @@ interface ConnectionStore {
   addTag: (tag: Tag) => void;
   updateTag: (id: string, patch: Partial<Omit<Tag, "id">>) => void;
   removeTag: (id: string) => void;
+  setConnectionMeta: (id: string, meta: { serverVersion?: string; tlsVersion?: string | null }) => void;
 }
 
 export const useConnectionStore = create<ConnectionStore>()(
@@ -190,6 +193,12 @@ export const useConnectionStore = create<ConnectionStore>()(
         set((state) => ({
           tags: state.tags.filter((t) => t.id !== id),
           connections: state.connections.map((c) => c.tagId === id ? { ...c, tagId: undefined } : c),
+        })),
+      setConnectionMeta: (id, meta) =>
+        set((state) => ({
+          connections: state.connections.map((c) =>
+            c.id === id ? { ...c, ...meta } : c
+          ),
         })),
     }),
     {
