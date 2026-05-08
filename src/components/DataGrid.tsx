@@ -213,6 +213,7 @@ interface EditableCellProps {
   onCommit: (value: CellPrimitive) => void;
   onCancel: () => void;
   onTabNext: () => void;
+  onDraftChange?: (value: string) => void;
 }
 
 function EditableCell({
@@ -222,6 +223,7 @@ function EditableCell({
   onCommit,
   onCancel,
   onTabNext,
+  onDraftChange,
 }: EditableCellProps) {
   const initialValue = getCellRawValue(cell);
   const [draft, setDraft] = useState(
@@ -271,6 +273,7 @@ function EditableCell({
         onChange={(e) => {
           setDraft(e.target.value);
           draftRef.current = e.target.value;
+          onDraftChange?.(e.target.value);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -329,6 +332,8 @@ export function DataGrid({
     rowIndex: number;
     colName: string;
   } | null>(null);
+  // Holds the current draft value while a cell is being edited — used to commit on row change
+  const activeDraftRef = useRef<{ rowIndex: number; colName: string; value: string } | null>(null);
 
   const pkColName =
     tableSchema?.columns.find((c) => c.is_primary_key)?.name ?? null;
@@ -482,13 +487,21 @@ export function DataGrid({
           isEditing={isEditing}
           isPendingEdit={hasPendingEdit}
           onCommit={(val) => {
+            activeDraftRef.current = null;
             setEditingCell(null);
             onCellEdit(rowIndex, col.name, val);
           }}
-          onCancel={() => setEditingCell(null)}
+          onCancel={() => {
+            activeDraftRef.current = null;
+            setEditingCell(null);
+          }}
           onTabNext={() => {
+            activeDraftRef.current = null;
             const next = getTabNextCell(rowIndex, col.name);
             setEditingCell(next);
+          }}
+          onDraftChange={(v) => {
+            activeDraftRef.current = { rowIndex, colName: col.name, value: v };
           }}
         />
       );
@@ -658,6 +671,14 @@ export function DataGrid({
                 <tr
                   key={row.id}
                   onMouseDown={(e) => {
+                    // Commit active cell edit before switching rows
+                    if (activeDraftRef.current && activeDraftRef.current.rowIndex !== dataIdx) {
+                      const { rowIndex, colName, value } = activeDraftRef.current;
+                      const normalized: CellPrimitive = value === "" ? null : value;
+                      activeDraftRef.current = null;
+                      setEditingCell(null);
+                      onCellEdit?.(rowIndex, colName, normalized);
+                    }
                     if (e.detail === 1) onRowSelect?.(dataIdx, e);
                   }}
                   onContextMenu={(e) => onContextMenu?.(e, dataIdx)}
