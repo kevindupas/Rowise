@@ -130,9 +130,9 @@ export function DatabaseScreen() {
         data-tauri-drag-region
         className="flex items-center shrink-0 select-none border-b"
         style={{
-          height: 44,
+          height: 38,
           backgroundColor: "hsl(var(--background))",
-          padding: "4px 12px 0 80px",
+          padding: "0 12px 0 80px",
           gap: 15,
         }}
       >
