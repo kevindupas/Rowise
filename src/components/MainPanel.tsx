@@ -90,22 +90,8 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
         updateTab(activeTabId, { selectedRowIndex: null });
       }
     }
-    function handleFocusIn(e: FocusEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") {
-        if (activeTabId) {
-          setSelectedRows(activeTabId, []);
-          updateTab(activeTabId, { selectedRowIndex: null });
-        }
-      }
-    }
-
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("focusin", handleFocusIn);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("focusin", handleFocusIn);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleRun, activeTabId, commitChanges, handleRefresh]);
 
   useEffect(() => {
