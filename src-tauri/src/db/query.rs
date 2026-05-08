@@ -233,14 +233,39 @@ pub async fn execute_sqlite(
             columns
                 .iter()
                 .enumerate()
-                .map(|(i, _)| {
-                    row.try_get::<String, _>(i)
-                        .map(CellValue::Text)
-                        .or_else(|_| {
-                            row.try_get::<i64, _>(i).map(|n| CellValue::Number(n as f64))
-                        })
-                        .or_else(|_| row.try_get::<f64, _>(i).map(CellValue::Number))
-                        .or_else(|_| row.try_get::<bool, _>(i).map(CellValue::Bool))
+                .map(|(i, col)| {
+                    let t = col.type_name.to_uppercase();
+                    // SQLite affinity-based decoding
+                    if t.contains("INT") {
+                        return row.try_get::<Option<i64>, _>(i)
+                            .map(|v| v.map(|n| CellValue::Number(n as f64)).unwrap_or(CellValue::Null))
+                            .unwrap_or(CellValue::Null);
+                    }
+                    if t.contains("REAL") || t.contains("FLOAT") || t.contains("DOUBLE") || t.contains("NUMERIC") {
+                        return row.try_get::<Option<f64>, _>(i)
+                            .map(|v| v.map(CellValue::Number).unwrap_or(CellValue::Null))
+                            .unwrap_or(CellValue::Null);
+                    }
+                    if t == "BOOLEAN" || t == "BOOL" {
+                        return row.try_get::<Option<bool>, _>(i)
+                            .map(|v| v.map(CellValue::Bool).unwrap_or(CellValue::Null))
+                            .unwrap_or(CellValue::Null);
+                    }
+                    // NULL type or empty type: try all in order
+                    if t.is_empty() || t == "NULL" {
+                        return row.try_get::<Option<i64>, _>(i)
+                            .map(|v| v.map(|n| CellValue::Number(n as f64)).unwrap_or(CellValue::Null))
+                            .or_else(|_| row.try_get::<Option<f64>, _>(i)
+                                .map(|v| v.map(CellValue::Number).unwrap_or(CellValue::Null)))
+                            .or_else(|_| row.try_get::<Option<bool>, _>(i)
+                                .map(|v| v.map(CellValue::Bool).unwrap_or(CellValue::Null)))
+                            .or_else(|_| row.try_get::<Option<String>, _>(i)
+                                .map(|v| v.map(CellValue::Text).unwrap_or(CellValue::Null)))
+                            .unwrap_or(CellValue::Null);
+                    }
+                    // Default: TEXT / BLOB / everything else as string
+                    row.try_get::<Option<String>, _>(i)
+                        .map(|v| v.map(CellValue::Text).unwrap_or(CellValue::Null))
                         .unwrap_or(CellValue::Null)
                 })
                 .collect()
@@ -270,54 +295,111 @@ pub async fn execute_mysql(
     let start = std::time::Instant::now();
 
     let trimmed = sql.trim().trim_end_matches(';');
-    let paginated = format!("{} LIMIT {} OFFSET {}", trimmed, limit, offset);
+
+    // Probe one row to detect column types
+    let probe_sql = format!("{} LIMIT 1", trimmed);
+    let probe_rows = sqlx::query(&probe_sql)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let col_meta: Vec<(String, String, bool)> = if let Some(first) = probe_rows.first() {
+        first.columns().iter().map(|c| {
+            let type_str = c.type_info().name().to_string();
+            let is_geo = matches!(type_str.to_lowercase().as_str(),
+                "geometry" | "point" | "linestring" | "polygon" | "multipolygon" | "multilinestring" | "multipoint" | "geometrycollection"
+            );
+            (c.name().to_string(), type_str, is_geo)
+        }).collect()
+    } else {
+        vec![]
+    };
+
+    // Wrap geo columns with ST_AsGeoJSON + ST_AsText
+    let has_geo = col_meta.iter().any(|(_, _, g)| *g);
+    let paginated = if has_geo {
+        let parts: Vec<String> = col_meta.iter().map(|(name, _, is_geo)| {
+            if *is_geo {
+                format!("JSON_OBJECT('geojson', ST_AsGeoJSON(`{name}`), 'wkt', ST_AsText(`{name}`)) AS `{name}`", name = name)
+            } else {
+                format!("`{}`", name)
+            }
+        }).collect();
+        format!("SELECT {} FROM ({}) AS _q LIMIT {} OFFSET {}", parts.join(", "), trimmed, limit, offset)
+    } else {
+        format!("{} LIMIT {} OFFSET {}", trimmed, limit, offset)
+    };
 
     let rows = sqlx::query(&paginated)
         .fetch_all(pool)
         .await
         .map_err(|e| e.to_string())?;
 
-    let columns: Vec<ColumnInfo> = if let Some(first) = rows.first() {
-        first
-            .columns()
-            .iter()
-            .map(|c| ColumnInfo {
-                name: c.name().to_string(),
-                type_name: c.type_info().name().to_string(),
-                is_geo: false,
-                is_primary_key: false,
-                is_nullable: true,
-                column_default: None,
-                is_foreign_key: false,
-                fk_table: None,
-                fk_column: None,
-                fk_schema: None,
-            })
-            .collect()
-    } else {
-        vec![]
-    };
+    let columns: Vec<ColumnInfo> = col_meta.iter().map(|(name, type_name, is_geo)| ColumnInfo {
+        name: name.clone(),
+        type_name: type_name.clone(),
+        is_geo: *is_geo,
+        is_primary_key: false,
+        is_nullable: true,
+        column_default: None,
+        is_foreign_key: false,
+        fk_table: None,
+        fk_column: None,
+        fk_schema: None,
+    }).collect();
 
     let result_rows: Vec<Vec<CellValue>> = rows
         .iter()
         .map(|row| {
-            columns
-                .iter()
-                .enumerate()
-                .map(|(i, _)| {
-                    row.try_get::<String, _>(i)
-                        .map(CellValue::Text)
-                        .or_else(|_| {
-                            row.try_get::<i64, _>(i).map(|n| CellValue::Number(n as f64))
-                        })
-                        .or_else(|_| row.try_get::<f64, _>(i).map(CellValue::Number))
-                        .or_else(|_| row.try_get::<bool, _>(i).map(CellValue::Bool))
-                        .or_else(|_| {
-                            row.try_get::<i32, _>(i).map(|n| CellValue::Number(n as f64))
-                        })
-                        .unwrap_or(CellValue::Null)
-                })
-                .collect()
+            columns.iter().enumerate().map(|(i, col)| {
+                if col.is_geo {
+                    return match row.try_get::<Option<serde_json::Value>, _>(i) {
+                        Ok(Some(v)) => {
+                            let geojson_str = v.get("geojson").and_then(|s| s.as_str()).unwrap_or("null");
+                            let geojson: serde_json::Value = serde_json::from_str(geojson_str).unwrap_or(serde_json::Value::Null);
+                            let wkt = v.get("wkt").and_then(|w| w.as_str()).map(|s| s.to_string());
+                            if geojson.is_null() { CellValue::Null } else { CellValue::Geo(GeoValue { geojson, wkt }) }
+                        }
+                        _ => CellValue::Null,
+                    };
+                }
+                let t = col.type_name.to_uppercase();
+                if t == "TINYINT(1)" || t == "BOOLEAN" || t == "BOOL" {
+                    return row.try_get::<Option<bool>, _>(i)
+                        .map(|v| v.map(CellValue::Bool).unwrap_or(CellValue::Null))
+                        .or_else(|_| row.try_get::<Option<i8>, _>(i)
+                            .map(|v| v.map(|n| CellValue::Bool(n != 0)).unwrap_or(CellValue::Null)))
+                        .unwrap_or(CellValue::Null);
+                }
+                if t.contains("BIGINT") || t.contains("INT") {
+                    return row.try_get::<Option<i64>, _>(i)
+                        .map(|v| v.map(|n| CellValue::Number(n as f64)).unwrap_or(CellValue::Null))
+                        .or_else(|_| row.try_get::<Option<i32>, _>(i)
+                            .map(|v| v.map(|n| CellValue::Number(n as f64)).unwrap_or(CellValue::Null)))
+                        .unwrap_or(CellValue::Null);
+                }
+                if t.contains("DECIMAL") || t.contains("NUMERIC") || t.contains("FLOAT") || t.contains("DOUBLE") {
+                    return row.try_get::<Option<f64>, _>(i)
+                        .map(|v| v.map(CellValue::Number).unwrap_or(CellValue::Null))
+                        .unwrap_or(CellValue::Null);
+                }
+                if t.contains("DATETIME") || t.contains("TIMESTAMP") {
+                    use sqlx::types::chrono::NaiveDateTime;
+                    return row.try_get::<Option<NaiveDateTime>, _>(i)
+                        .map(|v| v.map(|dt| CellValue::Text(dt.to_string())).unwrap_or(CellValue::Null))
+                        .or_else(|_| row.try_get::<Option<String>, _>(i)
+                            .map(|v| v.map(CellValue::Text).unwrap_or(CellValue::Null)))
+                        .unwrap_or(CellValue::Null);
+                }
+                if t == "JSON" {
+                    return row.try_get::<Option<serde_json::Value>, _>(i)
+                        .map(|v| v.map(|j| CellValue::Text(j.to_string())).unwrap_or(CellValue::Null))
+                        .unwrap_or(CellValue::Null);
+                }
+                row.try_get::<Option<String>, _>(i)
+                    .map(|v| v.map(CellValue::Text).unwrap_or(CellValue::Null))
+                    .unwrap_or(CellValue::Null)
+            }).collect()
         })
         .collect();
 
