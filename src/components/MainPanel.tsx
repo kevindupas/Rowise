@@ -29,7 +29,7 @@ interface MainPanelProps {
 export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: MainPanelProps) {
   const {
     tabs,
-    activeTabId,
+    getActiveTabId,
     updateTab,
     runTabQuery,
     addFilter,
@@ -42,8 +42,9 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
     commitChanges,
     setSelectedRows,
   } = useTabStore();
+  const { connections, activeConnectionId } = useConnectionStore();
+  const activeTabId = activeConnectionId ? getActiveTabId(activeConnectionId) : null;
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
-  const { connections } = useConnectionStore();
   const activeConn = activeTab ? connections.find((c) => c.id === activeTab.connectionId) ?? null : null;
 
   const { open: mapOpen, geojson: mapGeoJson, openMap, closeMap } = useMapStore();
@@ -224,7 +225,9 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
     runTabQuery(activeTabId);
   }
 
-  if (tabs.length === 0) {
+  const connTabs = tabs.filter((t) => t.connectionId === activeConnectionId);
+
+  if (connTabs.length === 0) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
