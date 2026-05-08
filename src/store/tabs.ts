@@ -433,7 +433,6 @@ export const useTabStore = create<TabStore>()(
 
   openSqlTab: (connectionId) => {
     const id = crypto.randomUUID();
-    const sqlTabs = get().tabs.filter((t) => t.sqlMode && !t.table);
     const tab: Tab = {
       id,
       connectionId,

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Pin, Search, Download, Trash2 } from "lucide-react";
+import { Pin, Search, Download, Trash2, ChevronDown } from "lucide-react";
 import type { Tab } from "../store/tabs";
 import { useQueryLogStore } from "../store/queryLog";
+import { exportCsv, exportGeoJson } from "../lib/export";
 
 interface Props {
   tab: Tab;
@@ -28,10 +29,15 @@ export function SqlResultPanel({ tab, dataGrid }: Props) {
   const { entries, clear } = useQueryLogStore();
   const [resultTab, setResultTab] = useState<"data" | "message">("data");
   const [consoleHeight, setConsoleHeight] = useState(180);
+  const [exportOpen, setExportOpen] = useState(false);
   const consoleResizing = useRef(false);
   const consoleResizeStartY = useRef(0);
   const consoleResizeStartH = useRef(0);
   const consoleRef = useRef<HTMLDivElement>(null);
+
+  const geoColIndex = tab.result?.columns.findIndex((c) => c.is_geo) ?? -1;
+  const hasGeo = geoColIndex >= 0;
+  const exportName = tab.label.replace(/[^a-z0-9_-]/gi, "_").toLowerCase() || "export";
 
   useEffect(() => {
     if (tab.loading) return;
@@ -97,9 +103,39 @@ export function SqlResultPanel({ tab, dataGrid }: Props) {
             <button className="opacity-50 hover:opacity-100 transition-opacity" title="Search">
               <Search style={{ width: 13, height: 13 }} />
             </button>
-            <button className="opacity-50 hover:opacity-100 transition-opacity" title="Export">
-              <Download style={{ width: 13, height: 13 }} />
-            </button>
+            {tab.result && (
+              <div className="relative">
+                <button
+                  className="flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity"
+                  title="Export"
+                  onClick={() => setExportOpen((o) => !o)}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.parentElement?.contains(e.relatedTarget)) setExportOpen(false);
+                  }}
+                >
+                  <Download style={{ width: 13, height: 13 }} />
+                  <ChevronDown style={{ width: 10, height: 10 }} />
+                </button>
+                {exportOpen && (
+                  <div className="absolute bottom-full mb-1 right-0 bg-popover border rounded shadow-md py-1 z-50 min-w-32">
+                    <button
+                      className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
+                      onClick={() => { exportCsv(tab.result!, exportName); setExportOpen(false); }}
+                    >
+                      Export as CSV
+                    </button>
+                    {hasGeo && (
+                      <button
+                        className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
+                        onClick={() => { exportGeoJson(tab.result!, geoColIndex, exportName); setExportOpen(false); }}
+                      >
+                        Export as GeoJSON
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -6,9 +6,12 @@ import {
   Plus,
   Map,
   Filter,
+  Download,
+  ChevronDown,
 } from "lucide-react";
 import { useTabStore } from "../store/tabs";
 import { Button } from "./ui/button";
+import { exportCsv, exportGeoJson } from "../lib/export";
 
 const LIMIT_OPTIONS = [50, 100, 300, 500, 1000];
 
@@ -37,8 +40,12 @@ export function BottomBar({
 }: Props) {
   const { tabs, toggleFilterBar, nextPage, prevPage, setLimit } = useTabStore();
   const [limitOpen, setLimitOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const tab = tabs.find((t) => t.id === tabId);
   if (!tab) return null;
+
+  const geoColIndex = tab.result?.columns.findIndex((c) => c.is_geo) ?? -1;
+  const exportName = tab.table || "export";
 
   const rowCount = tab.result?.rows.length ?? 0;
   const totalCount = tab.result?.total_count ?? null;
@@ -93,6 +100,40 @@ export function BottomBar({
                 <Map className="h-3 w-3" />
                 Map
               </button>
+            )}
+
+            {tab.result && (
+              <div className="relative">
+                <button
+                  onClick={() => setExportOpen((o) => !o)}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.parentElement?.contains(e.relatedTarget)) setExportOpen(false);
+                  }}
+                  className="flex items-center gap-1 px-2 h-5 rounded text-xs font-medium bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  Export
+                  <ChevronDown className="h-2.5 w-2.5" />
+                </button>
+                {exportOpen && (
+                  <div className="absolute bottom-full mb-1 left-0 bg-popover border rounded shadow-md py-1 z-50 min-w-36">
+                    <button
+                      className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
+                      onClick={() => { exportCsv(tab.result!, exportName); setExportOpen(false); }}
+                    >
+                      Export as CSV
+                    </button>
+                    {geoColIndex >= 0 && (
+                      <button
+                        className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
+                        onClick={() => { exportGeoJson(tab.result!, geoColIndex, exportName); setExportOpen(false); }}
+                      >
+                        Export as GeoJSON
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
