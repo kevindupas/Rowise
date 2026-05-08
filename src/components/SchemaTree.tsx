@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ChevronRight, ChevronDown, Table2, Search, SlidersHorizontal } from "lucide-react";
+import { ChevronRight, ChevronDown, Table2, Search, SlidersHorizontal, Plus, ChevronsUpDown } from "lucide-react";
 
 interface TableInfo {
   schema: string;
@@ -22,6 +22,8 @@ export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) 
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SidebarTab>("items");
   const [search, setSearch] = useState("");
+  const [activeSchema, setActiveSchema] = useState<string | null>(null);
+  const [schemaPickerOpen, setSchemaPickerOpen] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -30,7 +32,9 @@ export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) 
       .then((result) => {
         setTables(result);
         if (result.length > 0) {
-          setExpanded(new Set([result[0].schema]));
+          const firstSchema = result[0].schema;
+          setExpanded(new Set([firstSchema]));
+          setActiveSchema((prev) => prev ?? firstSchema);
         }
       })
       .catch((e) => setError(String(e)))
@@ -46,24 +50,31 @@ export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) 
     {} as Record<string, string[]>
   );
 
+  const schemas = Object.keys(grouped);
+  const currentSchema = activeSchema ?? schemas[0] ?? null;
+  const schemaFiltered: Record<string, string[]> = currentSchema && grouped[currentSchema]
+    ? { [currentSchema]: grouped[currentSchema] }
+    : grouped;
+
   const filteredGrouped: Record<string, string[]> = search.trim()
     ? Object.fromEntries(
-        Object.entries(grouped)
+        Object.entries(schemaFiltered)
           .map(([schema, names]) => [schema, names.filter((n) => n.toLowerCase().includes(search.toLowerCase()))])
           .filter(([, names]) => (names as string[]).length > 0)
       )
-    : grouped;
+    : schemaFiltered;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tabs */}
-      <div className="flex items-center shrink-0 border-b" style={{ padding: "0 8px" }}>
+      <div className="flex items-center justify-center shrink-0 border-b" style={{ padding: "0 8px" }}>
         {(["items", "queries", "history"] as SidebarTab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
-              padding: "8px 10px",
+              flex: 1,
+              padding: "8px 4px",
               fontSize: 12,
               fontWeight: activeTab === tab ? 600 : 400,
               color: activeTab === tab ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
@@ -72,7 +83,7 @@ export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) 
               borderBottom: activeTab === tab ? "2px solid hsl(var(--foreground))" : "2px solid transparent",
               cursor: "pointer",
               marginBottom: -1,
-              textTransform: "capitalize",
+              textAlign: "center",
             }}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -167,6 +178,53 @@ export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) 
           Query history coming soon
         </div>
       )}
+
+      {/* Bottom bar — schema picker */}
+      <div className="shrink-0 border-t flex items-center" style={{ height: 36, padding: "0 8px", gap: 4 }}>
+        <button
+          style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "hsl(var(--muted-foreground))", borderRadius: 4 }}
+          className="hover:bg-muted hover:text-foreground"
+          title="New table"
+        >
+          <Plus style={{ width: 14, height: 14 }} />
+        </button>
+        <button
+          style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "hsl(var(--muted-foreground))", borderRadius: 4 }}
+          className="hover:bg-muted hover:text-foreground"
+          title="More options"
+        >
+          <ChevronDown style={{ width: 14, height: 14 }} />
+        </button>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Schema selector */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setSchemaPickerOpen((v) => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "1px solid hsl(var(--border))", borderRadius: 4, padding: "2px 8px", cursor: "pointer", fontSize: 12, color: "hsl(var(--foreground))" }}
+          >
+            <span>{currentSchema ?? "public"}</span>
+            <ChevronsUpDown style={{ width: 11, height: 11, opacity: 0.6 }} />
+          </button>
+          {schemaPickerOpen && schemas.length > 1 && (
+            <div
+              style={{ position: "absolute", bottom: "calc(100% + 4px)", right: 0, background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: 6, minWidth: 120, zIndex: 50, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+            >
+              {schemas.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => { setActiveSchema(s); setSchemaPickerOpen(false); }}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 12px", fontSize: 12, background: s === currentSchema ? "hsl(var(--accent))" : "none", border: "none", cursor: "pointer", color: "hsl(var(--foreground))" }}
+                  className="hover:bg-muted"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
