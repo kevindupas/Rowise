@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { useTabStore, type CellPrimitive, type ColumnInfo, type TableStats } from "../store/tabs";
+import { useConnectionStore } from "../store/connections";
 import { CellValue, QueryColumn } from "./DataGrid";
 import { ScrollArea } from "./ui/scroll-area";
 import { Search, SlidersHorizontal, ChevronDown, Send, Bot, Map } from "lucide-react";
@@ -556,7 +557,9 @@ function TableStatsView({ stats }: { stats: TableStats }) {
 }
 
 export function DetailPanel() {
-  const { tabs, activeTabId, setPendingUpdate } = useTabStore();
+  const { tabs, getActiveTabId, setPendingUpdate } = useTabStore();
+  const { activeConnectionId } = useConnectionStore();
+  const activeTabId = activeConnectionId ? getActiveTabId(activeConnectionId) : null;
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<"details" | "assistant">("details");
