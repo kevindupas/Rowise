@@ -287,12 +287,10 @@ export function DatabaseScreen() {
         {/* Connections sidebar */}
         <div
           className="shrink-0 flex flex-col items-center border-r overflow-y-auto"
-          style={{ width: 80, backgroundColor: "hsl(var(--background))", gap: 0 }}
+          style={{ width: 90, backgroundColor: "hsl(var(--background))", gap: 0 }}
         >
           {connections.filter((c) => connectedIds.has(c.id)).map((conn) => {
             const isActive = conn.id === activeConnectionId;
-            const connName = conn.name.length > 9 ? conn.name.slice(0, 9) + "…" : conn.name;
-            const dbName = conn.database.length > 9 ? conn.database.slice(0, 9) + "…" : conn.database;
             return (
               <button
                 key={conn.id}
@@ -327,11 +325,11 @@ export function DatabaseScreen() {
                   <Database style={{ width: 18, height: 18, color: "white" }} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                  <span style={{ fontSize: 9, fontWeight: 600, color: "hsl(var(--foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {connName}
+                  <span style={{ fontSize: 9, fontWeight: 600, color: "hsl(var(--foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 78, wordBreak: "break-word" }}>
+                    {conn.name}
                   </span>
-                  <span style={{ fontSize: 8, color: "hsl(var(--muted-foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {dbName}
+                  <span style={{ fontSize: 8, color: "hsl(var(--muted-foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 78, wordBreak: "break-word" }}>
+                    {conn.database}
                   </span>
                 </div>
               </button>
