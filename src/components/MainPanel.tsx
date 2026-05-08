@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FeatureCollection } from "geojson";
 import { DataGrid, CellValue } from "./DataGrid";
 import { MapDrawer } from "./MapDrawer";
+import { useMapStore } from "../store/map";
 import { TabBar } from "./TabBar";
 import { FilterBar } from "./FilterBar";
 import { BottomBar } from "./BottomBar";
@@ -46,8 +46,7 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
   const { connections } = useConnectionStore();
   const activeConn = activeTab ? connections.find((c) => c.id === activeTab.connectionId) ?? null : null;
 
-  const [mapOpen, setMapOpen] = useState(false);
-  const [mapGeoJson, setMapGeoJson] = useState<FeatureCollection | null>(null);
+  const { open: mapOpen, geojson: mapGeoJson, openMap, closeMap } = useMapStore();
   const [activeView, setActiveView] = useState<"data" | "structure">("data");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
@@ -95,8 +94,7 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
   }, [handleRun, activeTabId, commitChanges, handleRefresh]);
 
   useEffect(() => {
-    setMapOpen(false);
-    setMapGeoJson(null);
+    closeMap();
     setActiveView("data");
     setContextMenu(null);
     setShowDiscardModal(false);
@@ -119,8 +117,7 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
         };
       })
       .filter((f): f is NonNullable<typeof f> => f !== null);
-    setMapGeoJson({ type: "FeatureCollection", features });
-    setMapOpen(true);
+    openMap({ type: "FeatureCollection", features }, `${activeTab.schema}.${activeTab.table}`);
   }
 
   function handleRowSelect(rowIndex: number, e: React.MouseEvent) {
@@ -357,7 +354,7 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
 
       <MapDrawer
         open={mapOpen}
-        onClose={() => setMapOpen(false)}
+        onClose={closeMap}
         geojson={mapGeoJson}
         title={`${activeTab.schema}.${activeTab.table}`}
       />
