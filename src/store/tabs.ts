@@ -96,7 +96,8 @@ export interface Tab {
 
 interface TabStore {
   tabs: Tab[];
-  activeTabId: string | null;
+  activeTabIdByConnection: Record<string, string>;
+  getActiveTabId: (connectionId: string) => string | null;
   showDetailPanel: boolean;
   openTab: (connectionId: string, schema: string, table: string, initialFilter?: { column: string; value: string }) => void;
   closeTab: (id: string) => void;
@@ -155,7 +156,7 @@ export const useTabStore = create<TabStore>()(
   persist(
     (set, get) => ({
   tabs: [],
-  activeTabId: null,
+  activeTabIdByConnection: {},
   showDetailPanel: true,
 
   openTab: (connectionId, schema, table, initialFilter) => {
@@ -166,7 +167,7 @@ export const useTabStore = create<TabStore>()(
         t.table === table
     );
     if (existing) {
-      set({ activeTabId: existing.id });
+      set((state) => ({ activeTabIdByConnection: { ...state.activeTabIdByConnection, [connectionId]: existing.id } }));
       if (initialFilter) {
         const filter: FilterRule = {
           id: crypto.randomUUID(),
@@ -213,7 +214,7 @@ export const useTabStore = create<TabStore>()(
 
     set((state) => ({
       tabs: [...state.tabs, tab],
-      activeTabId: id,
+      activeTabIdByConnection: { ...state.activeTabIdByConnection, [connectionId]: id },
     }));
 
     get().runTabQuery(id);
@@ -221,30 +222,44 @@ export const useTabStore = create<TabStore>()(
   },
 
   closeTab: (id) => {
-    const { tabs, activeTabId } = get();
-    const idx = tabs.findIndex((t) => t.id === id);
+    const { tabs, activeTabIdByConnection } = get();
+    const tab = tabs.find((t) => t.id === id);
+    if (!tab) return;
+    const connectionId = tab.connectionId;
+    const connTabs = tabs.filter((t) => t.connectionId === connectionId && t.id !== id);
     const remaining = tabs.filter((t) => t.id !== id);
 
-    let nextActiveId: string | null = null;
-    if (activeTabId === id) {
-      if (remaining.length > 0) {
-        nextActiveId = remaining[Math.max(0, idx - 1)].id;
-      }
+    const currentActive = activeTabIdByConnection[connectionId];
+    let nextActive: string | undefined;
+    if (currentActive === id) {
+      const idx = tabs.filter((t) => t.connectionId === connectionId).findIndex((t) => t.id === id);
+      nextActive = connTabs[Math.max(0, idx - 1)]?.id;
     } else {
-      nextActiveId = activeTabId;
+      nextActive = currentActive;
     }
 
-    set({ tabs: remaining, activeTabId: nextActiveId });
+    const newMap = { ...activeTabIdByConnection };
+    if (nextActive) newMap[connectionId] = nextActive;
+    else delete newMap[connectionId];
+
+    set({ tabs: remaining, activeTabIdByConnection: newMap });
   },
 
-  closeTabsForConnection: (connectionId) => {
-    const remaining = get().tabs.filter((t) => t.connectionId !== connectionId);
-    const activeTabId = get().activeTabId;
-    const activeStillExists = remaining.some((t) => t.id === activeTabId);
-    set({ tabs: remaining, activeTabId: activeStillExists ? activeTabId : (remaining[0]?.id ?? null) });
+  closeTabsForConnection: (_connectionId) => {
+    // No-op: tabs preserved when switching connections.
   },
 
-  setActiveTab: (id) => set({ activeTabId: id }),
+  setActiveTab: (id) => {
+    const tab = get().tabs.find((t) => t.id === id);
+    if (!tab) return;
+    set((state) => ({
+      activeTabIdByConnection: { ...state.activeTabIdByConnection, [tab.connectionId]: id },
+    }));
+  },
+
+  getActiveTabId: (connectionId) => {
+    return get().activeTabIdByConnection[connectionId] ?? null;
+  },
 
   updateTab: (id, partial) =>
     set((state) => ({
@@ -470,7 +485,7 @@ export const useTabStore = create<TabStore>()(
       lastQueryMs: null,
       lastQueryMessage: null,
     };
-    set((state) => ({ tabs: [...state.tabs, tab], activeTabId: id }));
+    set((state) => ({ tabs: [...state.tabs, tab], activeTabIdByConnection: { ...state.activeTabIdByConnection, [connectionId]: id } }));
   },
 
   setPendingUpdate: (tabId, rowIndex, col, newValue) =>
@@ -620,7 +635,7 @@ export const useTabStore = create<TabStore>()(
           selectedRowIndices: [],
           pendingChanges: [],
         })),
-        activeTabId: state.activeTabId,
+        activeTabIdByConnection: state.activeTabIdByConnection,
         showDetailPanel: state.showDetailPanel,
       }),
     }
