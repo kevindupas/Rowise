@@ -382,6 +382,8 @@ export function DataGrid({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (editingCell) return;
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
         selectedRowIndices.length > 0
