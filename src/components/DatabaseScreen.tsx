@@ -10,7 +10,8 @@ import { useTabStore } from "../store/tabs";
 export function DatabaseScreen() {
   const { connections, activeConnectionId, setConnected, tags } =
     useConnectionStore();
-  const { tabs, activeTabId, showDetailPanel, toggleDetailPanel, openTab, openSqlTab, runTabQuery } = useTabStore();
+  const { tabs, activeTabId, showDetailPanel, toggleDetailPanel, openTab, openSqlTab, runTabQuery, clearPendingChanges } = useTabStore();
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
   const { theme, setTheme } = useTheme();
 
   const activeConn = connections.find((c) => c.id === activeConnectionId) ?? null;
@@ -162,7 +163,10 @@ export function DatabaseScreen() {
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0, gap: 4 }}>
           {[
             { icon: <BarChart2 style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Stats" },
-            ...(activeTab ? [{ icon: <RefreshCw style={{ width: 14, height: 14 }} />, onClick: () => runTabQuery(activeTab.id), title: "Refresh (⌘R)" }] : []),
+            ...(activeTab ? [{ icon: <RefreshCw style={{ width: 14, height: 14 }} />, onClick: () => {
+              if (activeTab.pendingChanges.length > 0) setShowDiscardModal(true);
+              else runTabQuery(activeTab.id);
+            }, title: "Refresh (⌘R)" }] : []),
             { icon: <Search style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Search" },
             { icon: <MoreVertical style={{ width: 14, height: 14 }} />, onClick: undefined, title: "More" },
           ].map((btn, i) => (
@@ -287,6 +291,37 @@ export function DatabaseScreen() {
           </div>
         )}
       </div>
+
+      {showDiscardModal && activeTab && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background border rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="font-semibold text-base mb-2">Discard all changes?</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Tips: You can commit the changes by
+              <br />1. Command + S (Mac) / Ctrl + S (Windows)
+              <br />2. Click the save button in the toolbar.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDiscardModal(false)}
+                className="px-4 py-2 text-sm rounded border hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  clearPendingChanges(activeTab.id);
+                  setShowDiscardModal(false);
+                  runTabQuery(activeTab.id);
+                }}
+                className="px-4 py-2 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -231,6 +231,8 @@ function EditableCell({
   const originalRef = useRef<string>(
     initialValue === null ? "" : String(initialValue),
   );
+  // Keep a ref to always-current draft so onBlur closure never captures stale value
+  const draftRef = useRef<string>(draft);
 
   // Sync draft when cell value changes from outside (e.g. pending edit applied)
   useEffect(() => {
@@ -238,6 +240,7 @@ function EditableCell({
       const v = getCellRawValue(cell);
       const s = v === null ? "" : String(v);
       setDraft(s);
+      draftRef.current = s;
       originalRef.current = s;
     }
   }, [cell, isEditing]);
@@ -265,21 +268,24 @@ function EditableCell({
       <input
         ref={inputRef}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          draftRef.current = e.target.value;
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            commitIfChanged(draft);
+            commitIfChanged(draftRef.current);
           } else if (e.key === "Escape") {
             e.preventDefault();
             onCancel();
           } else if (e.key === "Tab") {
             e.preventDefault();
-            commitIfChanged(draft);
+            commitIfChanged(draftRef.current);
             onTabNext();
           }
         }}
-        onBlur={() => commitIfChanged(draft)}
+        onBlur={() => commitIfChanged(draftRef.current)}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         className="w-full h-full px-0 py-0 bg-transparent border-0 outline-none text-sm font-mono"
