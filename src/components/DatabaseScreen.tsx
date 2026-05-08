@@ -132,7 +132,7 @@ export function DatabaseScreen() {
         style={{
           height: 40,
           backgroundColor: "hsl(var(--background))",
-          padding: "0 12px",
+          padding: "0 12px 0 80px",
           gap: 15,
         }}
       >
