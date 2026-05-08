@@ -11,7 +11,8 @@ import { useTabStore } from "../store/tabs";
 export function DatabaseScreen() {
   const { connections, activeConnectionId, setConnected, tags } =
     useConnectionStore();
-  const { tabs, activeTabId, showDetailPanel, toggleDetailPanel, openTab, openSqlTab, runTabQuery, clearPendingChanges } = useTabStore();
+  const { tabs, getActiveTabId, showDetailPanel, toggleDetailPanel, openTab, openSqlTab, runTabQuery, clearPendingChanges } = useTabStore();
+  const activeTabId = activeConnectionId ? getActiveTabId(activeConnectionId) : null;
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const { theme, setTheme } = useTheme();
