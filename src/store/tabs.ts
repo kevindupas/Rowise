@@ -302,6 +302,7 @@ export const useTabStore = create<TabStore>()(
         result,
         loading: false,
         selectedRowIndex: null,
+        selectedRowIndices: [],
         lastQueryMs: ms,
         lastQueryMessage: message,
         sqlLogs: tab.sqlMode ? [...(get().tabs.find(t=>t.id===id)?.sqlLogs ?? []), logEntry] : tab.sqlLogs,
