@@ -9,7 +9,7 @@ import { useConnectionStore } from "../store/connections";
 import { useTabStore } from "../store/tabs";
 
 export function DatabaseScreen() {
-  const { connections, activeConnectionId, setConnected, tags } =
+  const { connections, activeConnectionId, setConnected, setActiveConnection, connectedIds, tags } =
     useConnectionStore();
   const { tabs, getActiveTabId, showDetailPanel, toggleDetailPanel, openTab, openSqlTab, runTabQuery, clearPendingChanges } = useTabStore();
   const activeTabId = activeConnectionId ? getActiveTabId(activeConnectionId) : null;
@@ -284,7 +284,56 @@ export function DatabaseScreen() {
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Connections sidebar */}
+        <div
+          className="shrink-0 flex flex-col items-center border-r overflow-y-auto"
+          style={{ width: 64, backgroundColor: "hsl(var(--background))", gap: 0 }}
+        >
+          {connections.filter((c) => connectedIds.has(c.id)).map((conn) => {
+            const isActive = conn.id === activeConnectionId;
+            const label = conn.name.length > 7 ? conn.name.slice(0, 7) + "…" : conn.name;
+            return (
+              <button
+                key={conn.id}
+                onClick={() => setActiveConnection(conn.id)}
+                title={conn.name}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  padding: "10px 4px",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  borderLeft: isActive ? `3px solid ${conn.color ?? "#087a3d"}` : "3px solid transparent",
+                  backgroundColor: isActive ? "hsl(var(--muted))" : "transparent",
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    backgroundColor: conn.color ?? "#087a3d",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Database style={{ width: 16, height: 16, color: "white" }} />
+                </div>
+                <span style={{ fontSize: 9, color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 56, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Schema sidebar */}
         {showSidebar && (
           <div className="border-r shrink-0 flex flex-col overflow-hidden relative" style={{ width: sidebarWidth }}>
             {activeConnectionId && (
