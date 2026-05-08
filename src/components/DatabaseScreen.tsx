@@ -287,24 +287,25 @@ export function DatabaseScreen() {
         {/* Connections sidebar */}
         <div
           className="shrink-0 flex flex-col items-center border-r overflow-y-auto"
-          style={{ width: 64, backgroundColor: "hsl(var(--background))", gap: 0 }}
+          style={{ width: 80, backgroundColor: "hsl(var(--background))", gap: 0 }}
         >
           {connections.filter((c) => connectedIds.has(c.id)).map((conn) => {
             const isActive = conn.id === activeConnectionId;
-            const label = conn.name.length > 7 ? conn.name.slice(0, 7) + "…" : conn.name;
+            const connName = conn.name.length > 9 ? conn.name.slice(0, 9) + "…" : conn.name;
+            const dbName = conn.database.length > 9 ? conn.database.slice(0, 9) + "…" : conn.database;
             return (
               <button
                 key={conn.id}
                 onClick={() => setActiveConnection(conn.id)}
-                title={conn.name}
+                title={`${conn.name} : ${conn.database}`}
                 style={{
                   width: "100%",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 4,
-                  padding: "10px 4px",
+                  gap: 5,
+                  padding: "12px 6px",
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -313,21 +314,26 @@ export function DatabaseScreen() {
               >
                 <div
                   style={{
-                    width: 36,
-                    height: 36,
+                    width: 38,
+                    height: 38,
                     borderRadius: 10,
                     backgroundColor: conn.color ?? "#087a3d",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: isActive ? `0 0 0 2.5px white, 0 0 0 4px ${conn.color ?? "#087a3d"}` : "none",
+                    boxShadow: isActive ? `0 0 0 2.5px hsl(var(--background)), 0 0 0 4px ${conn.color ?? "#087a3d"}` : "none",
                   }}
                 >
                   <Database style={{ width: 18, height: 18, color: "white" }} />
                 </div>
-                <span style={{ fontSize: 9, color: "hsl(var(--foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 56, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {label}
-                </span>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                  <span style={{ fontSize: 9, fontWeight: 600, color: "hsl(var(--foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {connName}
+                  </span>
+                  <span style={{ fontSize: 8, color: "hsl(var(--muted-foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {dbName}
+                  </span>
+                </div>
               </button>
             );
           })}
