@@ -286,8 +286,8 @@ export function DatabaseScreen() {
       <div className="flex flex-1 overflow-hidden">
         {/* Connections sidebar */}
         <div
-          className="shrink-0 flex flex-col items-center border-r overflow-y-auto"
-          style={{ width: 90, backgroundColor: "hsl(var(--background))", gap: 0 }}
+          className="shrink-0 flex flex-col items-center overflow-y-auto"
+          style={{ width: 90, backgroundColor: "hsl(var(--muted))", gap: 0, borderRight: "1px solid hsl(var(--border))" }}
         >
           {connections.filter((c) => connectedIds.has(c.id)).map((conn) => {
             const isActive = conn.id === activeConnectionId;
