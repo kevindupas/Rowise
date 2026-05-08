@@ -246,6 +246,7 @@ export const useTabStore = create<TabStore>()(
   runTabQuery: async (id) => {
     const tab = get().tabs.find((t) => t.id === id);
     if (!tab) return;
+    if (tab.loading) return;
 
     let sql = tab.sql;
     if (!tab.sqlMode) {

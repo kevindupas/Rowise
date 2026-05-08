@@ -183,10 +183,6 @@ export function DatabaseScreen() {
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0, gap: 4 }}>
           {[
             { icon: <BarChart2 style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Stats" },
-            ...(activeTab ? [{ icon: <RefreshCw style={{ width: 14, height: 14, animation: activeTab.loading ? "spin 0.8s linear infinite" : "none" }} />, onClick: () => {
-              if (activeTab.pendingChanges.length > 0) setShowDiscardModal(true);
-              else runTabQuery(activeTab.id);
-            }, title: "Refresh (⌘R)" }] : []),
             { icon: <Search style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Search" },
             { icon: <MoreVertical style={{ width: 14, height: 14 }} />, onClick: undefined, title: "More" },
           ].map((btn, i) => (
@@ -200,6 +196,23 @@ export function DatabaseScreen() {
               {btn.icon}
             </button>
           ))}
+          {activeTab && (
+            <button
+              title="Refresh (⌘R)"
+              disabled={activeTab.loading}
+              onClick={() => {
+                if (activeTab.pendingChanges.length > 0) setShowDiscardModal(true);
+                else runTabQuery(activeTab.id);
+              }}
+              style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: "none", border: "none", cursor: activeTab.loading ? "default" : "pointer", color: "var(--foreground)" }}
+              className="hover:bg-black/10 dark:hover:bg-white/10 transition-all"
+            >
+              <RefreshCw
+                style={{ width: 14, height: 14, opacity: activeTab.loading ? 1 : 0.7 }}
+                className={activeTab.loading ? "animate-spin" : ""}
+              />
+            </button>
+          )}
 
           <span style={{ width: 1, height: 14, backgroundColor: "currentColor", opacity: 0.2, margin: "0 2px" }} />
 
