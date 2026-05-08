@@ -7,12 +7,15 @@ interface Props {
   row: CellValue[];
   columns: QueryColumn[];
   rowIndex: number;
+  selectedRowIndices: number[];
+  canDelete: boolean;
   onClose: () => void;
   onShowMap: (geoColIndex: number) => void;
   onFilterBy: (column: string, value: string) => void;
+  onDeleteRows: (indices: number[]) => void;
 }
 
-export function RowContextMenu({ x, y, row, columns, onClose, onShowMap, onFilterBy }: Props) {
+export function RowContextMenu({ x, y, row, columns, rowIndex, selectedRowIndices, canDelete, onClose, onShowMap, onFilterBy, onDeleteRows }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,7 +71,12 @@ export function RowContextMenu({ x, y, row, columns, onClose, onShowMap, onFilte
     onClose();
   }
 
-  const menuItems: Array<{ label: string; action: () => void; divider?: boolean } | { divider: true; label?: never; action?: never }> = [
+  const deleteIndices = selectedRowIndices.includes(rowIndex) && selectedRowIndices.length > 1
+    ? selectedRowIndices
+    : [rowIndex];
+  const deleteLabel = deleteIndices.length > 1 ? `Delete ${deleteIndices.length} rows` : "Delete row";
+
+  const menuItems: Array<{ label: string; action: () => void; divider?: boolean; danger?: boolean } | { divider: true; label?: never; action?: never }> = [
     ...(hasGeo ? [{ label: "🌍 Show on Map", action: () => { onShowMap(geoCol); onClose(); } }, { divider: true as const }] : []),
     {
       label: "Copy row as JSON",
@@ -91,6 +99,10 @@ export function RowContextMenu({ x, y, row, columns, onClose, onShowMap, onFilte
       })
       .filter((item): item is { label: string; action: () => void } => item !== null)
       .slice(0, 3),
+    ...(canDelete ? [
+      { divider: true as const },
+      { label: deleteLabel, action: () => { onDeleteRows(deleteIndices); onClose(); }, danger: true },
+    ] : []),
   ];
 
   return (
@@ -105,7 +117,7 @@ export function RowContextMenu({ x, y, row, columns, onClose, onShowMap, onFilte
         ) : (
           <button
             key={i}
-            className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground truncate"
+            className={`w-full text-left px-3 py-1.5 truncate ${"danger" in item && item.danger ? "text-destructive hover:bg-destructive/10" : "hover:bg-accent hover:text-accent-foreground"}`}
             onClick={item.action}
           >
             {item.label}

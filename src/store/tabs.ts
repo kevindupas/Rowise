@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { invoke } from "@tauri-apps/api/core";
 import type { QueryResult } from "../components/DataGrid";
+import { useQueryLogStore } from "./queryLog";
 
 export interface ColumnInfo {
   name: string;
@@ -55,6 +56,19 @@ export type PendingChange =
   | { kind: "delete"; rowIndices: number[] }
   | { kind: "insert"; tempId: string; values: Record<string, CellPrimitive> };
 
+export interface TableStats {
+  row_count: number | null;
+  total_size: string | null;
+  data_size: string | null;
+  index_size: string | null;
+  comment: string | null;
+}
+
+export interface SqlLogEntry {
+  timestamp: string;
+  sql: string;
+}
+
 export interface Tab {
   id: string;
   connectionId: string;
@@ -64,6 +78,7 @@ export interface Tab {
   sql: string;
   result: QueryResult | null;
   tableSchema: TableSchema | null;
+  tableStats: TableStats | null;
   selectedRowIndex: number | null;
   selectedRowIndices: number[];
   pendingChanges: PendingChange[];
@@ -74,6 +89,9 @@ export interface Tab {
   sqlMode: boolean;
   limit: number;
   offset: number;
+  sqlLogs: SqlLogEntry[];
+  lastQueryMs: number | null;
+  lastQueryMessage: string | null;
 }
 
 interface TabStore {
@@ -101,6 +119,7 @@ interface TabStore {
   clearPendingChanges: (tabId: string) => void;
   commitChanges: (tabId: string) => Promise<void>;
   setSelectedRows: (tabId: string, indices: number[]) => void;
+  openSqlTab: (connectionId: string) => void;
 }
 
 function buildWhereClause(filters: FilterRule[]): string {
@@ -175,6 +194,7 @@ export const useTabStore = create<TabStore>()(
       sql,
       result: null,
       tableSchema: null,
+      tableStats: null,
       selectedRowIndex: null,
       selectedRowIndices: [],
       pendingChanges: [],
@@ -185,6 +205,9 @@ export const useTabStore = create<TabStore>()(
       sqlMode: false,
       limit: 300,
       offset: 0,
+      sqlLogs: [],
+      lastQueryMs: null,
+      lastQueryMessage: null,
     };
 
     set((state) => ({
@@ -231,7 +254,12 @@ export const useTabStore = create<TabStore>()(
     }
     if (!sql.trim()) return;
 
+    const ts = new Date();
+    const timestamp = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,"0")}-${String(ts.getDate()).padStart(2,"0")} ${String(ts.getHours()).padStart(2,"0")}:${String(ts.getMinutes()).padStart(2,"0")}:${String(ts.getSeconds()).padStart(2,"0")}`;
+    const logEntry: SqlLogEntry = { timestamp, sql };
+
     get().updateTab(id, { loading: true, error: null });
+    const t0 = performance.now();
     try {
       const result = await invoke<QueryResult>("execute_query", {
         connectionId: tab.connectionId,
@@ -239,9 +267,46 @@ export const useTabStore = create<TabStore>()(
         limit: tab.limit,
         offset: tab.offset,
       });
-      get().updateTab(id, { result, loading: false, selectedRowIndex: null });
+      const ms = Math.round(performance.now() - t0);
+      const rowCount = result.rows.length;
+      const message = `Query OK: ${sql.trim().split(/\s+/)[0].toUpperCase()} ${rowCount} row${rowCount !== 1 ? "s" : ""}`;
+      useQueryLogStore.getState().push({ timestamp, sql, connectionId: tab.connectionId, durationMs: ms, error: null });
+      get().updateTab(id, {
+        result,
+        loading: false,
+        selectedRowIndex: null,
+        lastQueryMs: ms,
+        lastQueryMessage: message,
+        sqlLogs: tab.sqlMode ? [...(get().tabs.find(t=>t.id===id)?.sqlLogs ?? []), logEntry] : tab.sqlLogs,
+      });
+      if (tab.sqlMode) {
+        const fromMatch = sql.match(/\bFROM\s+"?(\w+)"?\."?(\w+)"?/i);
+        const fromCount = (sql.match(/\bFROM\b/gi) ?? []).length;
+        if (fromMatch && fromCount === 1) {
+          try {
+            const tableSchema = await invoke<TableSchema>("get_table_schema", {
+              connectionId: tab.connectionId,
+              schema: fromMatch[1],
+              table: fromMatch[2],
+            });
+            get().updateTab(id, { tableSchema });
+          } catch { /* non-fatal */ }
+        } else {
+          get().updateTab(id, { tableSchema: null });
+        }
+      }
     } catch (e) {
-      get().updateTab(id, { error: String(e), result: null, loading: false });
+      const ms = Math.round(performance.now() - t0);
+      const errStr = String(e);
+      useQueryLogStore.getState().push({ timestamp, sql, connectionId: tab.connectionId, durationMs: ms, error: errStr });
+      get().updateTab(id, {
+        error: errStr,
+        result: null,
+        loading: false,
+        lastQueryMs: ms,
+        lastQueryMessage: `ERROR: ${errStr}`,
+        sqlLogs: tab.sqlMode ? [...(get().tabs.find(t=>t.id===id)?.sqlLogs ?? []), logEntry] : tab.sqlLogs,
+      });
     }
   },
 
@@ -341,14 +406,21 @@ export const useTabStore = create<TabStore>()(
     const tab = get().tabs.find((t) => t.id === tabId);
     if (!tab || tab.sqlMode) return;
     try {
-      const tableSchema = await invoke<TableSchema>("get_table_schema", {
-        connectionId: tab.connectionId,
-        schema: tab.schema,
-        table: tab.table,
-      });
-      get().updateTab(tabId, { tableSchema });
+      const [tableSchema, tableStats] = await Promise.all([
+        invoke<TableSchema>("get_table_schema", {
+          connectionId: tab.connectionId,
+          schema: tab.schema,
+          table: tab.table,
+        }),
+        invoke<TableStats>("get_table_stats", {
+          connectionId: tab.connectionId,
+          schema: tab.schema,
+          table: tab.table,
+        }).catch(() => null),
+      ]);
+      get().updateTab(tabId, { tableSchema, tableStats });
     } catch {
-      // non-fatal — structure view will show error, FK arrows just won't appear
+      // non-fatal
     }
   },
 
@@ -358,6 +430,36 @@ export const useTabStore = create<TabStore>()(
         t.id === tabId ? { ...t, selectedRowIndices: indices } : t
       ),
     })),
+
+  openSqlTab: (connectionId) => {
+    const id = crypto.randomUUID();
+    const sqlTabs = get().tabs.filter((t) => t.sqlMode && !t.table);
+    const tab: Tab = {
+      id,
+      connectionId,
+      schema: "",
+      table: "",
+      label: "SQL Query",
+      sql: "",
+      result: null,
+      tableSchema: null,
+      tableStats: null,
+      selectedRowIndex: null,
+      selectedRowIndices: [],
+      pendingChanges: [],
+      loading: false,
+      error: null,
+      filters: [],
+      showFilterBar: false,
+      sqlMode: true,
+      limit: 300,
+      offset: 0,
+      sqlLogs: [],
+      lastQueryMs: null,
+      lastQueryMessage: null,
+    };
+    set((state) => ({ tabs: [...state.tabs, tab], activeTabId: id }));
+  },
 
   setPendingUpdate: (tabId, rowIndex, col, newValue) =>
     set((state) => ({

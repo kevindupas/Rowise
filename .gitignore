@@ -24,4 +24,6 @@ dist-ssr
 *.sw?
 
 docs/
+docs/plan/*
 projet.md
+templates/

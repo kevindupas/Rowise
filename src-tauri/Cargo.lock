@@ -3818,6 +3818,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "rowise"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "geozero",
+ "keyring",
+ "rand",
+ "russh",
+ "russh-keys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "shellexpand",
+ "sqlx",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "rsa"
 version = "0.9.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4877,32 +4903,6 @@ dependencies = [
  "pkg-config",
  "toml 0.8.2",
  "version-compare",
-]
-
-[[package]]
-name = "tablelike"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "async-trait",
- "geozero",
- "keyring",
- "rand",
- "russh",
- "russh-keys",
- "serde",
- "serde_json",
- "sha2",
- "shellexpand",
- "sqlx",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "thiserror 1.0.69",
- "tokio",
- "uuid",
 ]
 
 [[package]]

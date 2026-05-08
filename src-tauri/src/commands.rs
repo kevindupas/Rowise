@@ -410,14 +410,14 @@ pub fn import_connections(
 
 #[tauri::command]
 pub fn save_password(connection_id: String, password: String) -> Result<(), String> {
-    let entry = keyring::Entry::new("tablelike", &connection_id)
+    let entry = keyring::Entry::new("rowise", &connection_id)
         .map_err(|e| e.to_string())?;
     entry.set_password(&password).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn get_password(connection_id: String) -> Result<String, String> {
-    let entry = keyring::Entry::new("tablelike", &connection_id)
+    let entry = keyring::Entry::new("rowise", &connection_id)
         .map_err(|e| e.to_string())?;
     match entry.get_password() {
         Ok(p) => Ok(p),
@@ -428,7 +428,7 @@ pub fn get_password(connection_id: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn delete_password(connection_id: String) -> Result<(), String> {
-    let entry = keyring::Entry::new("tablelike", &connection_id)
+    let entry = keyring::Entry::new("rowise", &connection_id)
         .map_err(|e| e.to_string())?;
     entry.delete_credential().map_err(|e| e.to_string())
 }

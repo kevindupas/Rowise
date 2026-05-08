@@ -22,6 +22,8 @@ interface ImportedConn {
   color: string;
   group_id?: string | null;
   password?: string | null;
+  password_mode?: string | null;
+  ssl_mode?: string | null;
 }
 
 interface ImportedGroup {
@@ -82,6 +84,8 @@ export function ImportDialog({ open: isOpen, onClose }: Props) {
           username: c.username,
           color: c.color,
           groupId: c.group_id ?? undefined,
+          passwordMode: (c.password_mode as any) ?? "keychain",
+          sslMode: (c.ssl_mode as any) ?? "preferred",
         });
         if (c.password) {
           await savePassword(newId, c.password).catch(() => {});

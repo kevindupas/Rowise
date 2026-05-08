@@ -44,7 +44,7 @@ function TabItem({ tab, isActive, onActivate, onClose }: TabItemProps) {
       }`}
       onClick={onActivate}
     >
-      <span className="max-w-32 truncate">{tab.table}</span>
+      <span className="max-w-32 truncate">{tab.table || tab.label}</span>
       {tab.loading && (
         <span className="text-xs text-muted-foreground animate-pulse">…</span>
       )}

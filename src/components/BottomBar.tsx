@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Settings2,
+  Plus,
+  Map,
+  Filter,
+} from "lucide-react";
 import { useTabStore } from "../store/tabs";
 import { Button } from "./ui/button";
 
@@ -17,7 +24,17 @@ interface Props {
   canEdit?: boolean;
 }
 
-export function BottomBar({ tabId, activeView, onViewChange, onAddRow, onShowMap, hasGeo, selectedCount, totalRowCount, canEdit }: Props) {
+export function BottomBar({
+  tabId,
+  activeView,
+  onViewChange,
+  onAddRow,
+  onShowMap,
+  hasGeo,
+  selectedCount,
+  totalRowCount,
+  canEdit,
+}: Props) {
   const { tabs, toggleFilterBar, nextPage, prevPage, setLimit } = useTabStore();
   const [limitOpen, setLimitOpen] = useState(false);
   const tab = tabs.find((t) => t.id === tabId);
@@ -26,84 +43,87 @@ export function BottomBar({ tabId, activeView, onViewChange, onAddRow, onShowMap
   const rowCount = tab.result?.rows.length ?? 0;
   const totalCount = tab.result?.total_count ?? null;
   const hasPrev = tab.offset > 0;
-  const hasNext = tab.limit > 0 && (totalCount !== null
-    ? tab.offset + tab.limit < totalCount
-    : tab.result !== null && tab.result.rows.length === tab.limit);
+  const hasNext =
+    tab.limit > 0 &&
+    (totalCount !== null
+      ? tab.offset + tab.limit < totalCount
+      : tab.result !== null && tab.result.rows.length === tab.limit);
 
   return (
-    <div className="h-8 border-t flex items-center justify-between px-0 shrink-0 bg-muted/10 text-xs relative">
-      {/* Left: Data / Structure + Add row + Show map */}
-      <div className="flex items-center">
-        <button
-          className={`px-3 h-8 border-r transition-colors ${
-            activeView === "data"
-              ? "text-foreground font-medium"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => onViewChange("data")}
-        >
-          Data
-        </button>
-        <button
-          className={`px-3 h-8 border-r transition-colors ${
-            activeView === "structure"
-              ? "text-foreground font-medium"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => onViewChange("structure")}
-        >
-          Structure
-        </button>
+    <div className="h-9 border-t flex items-center justify-between px-0 shrink-0 bg-muted/10 text-xs relative">
+      {/* Left: view tabs + action buttons */}
+      <div className="flex items-center h-full">
+        {/* View tabs */}
+        <div className="flex items-center gap-0.5 px-2 border-r h-full">
+          {(["data", "structure"] as const).map((view) => (
+            <button
+              key={view}
+              onClick={() => onViewChange(view)}
+              className={`px-2.5 h-5 rounded text-xs font-medium transition-colors
+                ${
+                  activeView === view
+                    ? "bg-foreground text-background"
+                    : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+            >
+              {view === "data" ? "Data" : "Structure"}
+            </button>
+          ))}
+        </div>
 
-        {activeView === "data" && canEdit && onAddRow && (
-          <button
-            onClick={onAddRow}
-            className="px-3 h-8 border-r text-green-500 hover:text-green-400 transition-colors"
-            title="Add row"
-          >
-            + Add row
-          </button>
+        {/* Action buttons — only in data view */}
+        {activeView === "data" && (
+          <div className="flex items-center gap-1 px-2 border-r h-full">
+            {canEdit && onAddRow && (
+              <button
+                onClick={onAddRow}
+                className="flex items-center gap-1 px-2 h-5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                title="Add row"
+              >
+                <Plus className="h-3 w-3" />
+                Add row
+              </button>
+            )}
+
+            {hasGeo && onShowMap && (
+              <button
+                onClick={onShowMap}
+                className="flex items-center gap-1 px-2 h-5 rounded text-xs font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
+              >
+                <Map className="h-3 w-3" />
+                Map
+              </button>
+            )}
+          </div>
         )}
-
-        {activeView === "data" && hasGeo && onShowMap && (
-          <button
-            onClick={onShowMap}
-            className="px-3 h-8 border-r text-blue-500 hover:text-blue-400 transition-colors"
-          >
-            🌍 Show on Map
-          </button>
-        )}
-
-        {/* Selected rows info */}
       </div>
 
       {/* Center: range or selection info */}
       {activeView === "data" && (
-        <span className="absolute left-1/2 -translate-x-1/2 text-muted-foreground pointer-events-none">
+        <span className="absolute left-1/2 -translate-x-1/2 text-muted-foreground pointer-events-none tabular-nums">
           {selectedCount && selectedCount > 0
             ? `${selectedCount} of ${totalRowCount ?? rowCount} selected`
             : totalRowCount != null
               ? `${tab.offset + 1}–${tab.offset + rowCount} of ${totalRowCount.toLocaleString()} rows`
-              : `${rowCount} rows`
-          }
+              : `${rowCount} rows`}
         </span>
       )}
 
-      {/* Right: Filters + pagination */}
-      <div className="flex items-center gap-1 px-2">
-        <button
-          className={`px-2 h-6 rounded transition-colors text-xs ${
-            tab.showFilterBar
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => toggleFilterBar(tabId)}
-        >
-          Filters
-        </button>
-
-        <div className="w-px h-4 bg-border mx-1" />
-
+      {/* Right: filter + pagination */}
+      <div className="flex items-center gap-0.5 px-2">
+        {activeView === "data" && (
+          <button
+            onClick={() => toggleFilterBar(tabId)}
+            className={`flex items-center gap-1 px-2 h-5 rounded text-xs font-medium transition-colors mr-1 ${
+              tab.showFilterBar
+                ? "bg-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500/30"
+                : "bg-violet-500/10 text-violet-600/60 dark:text-violet-400/60 hover:bg-violet-500/20 hover:text-violet-600 dark:hover:text-violet-400"
+            }`}
+          >
+            <Filter className="h-3 w-3" />
+            Filter
+          </button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -117,7 +137,7 @@ export function BottomBar({ tabId, activeView, onViewChange, onAddRow, onShowMap
 
         <div className="relative">
           <button
-            className="h-6 px-1.5 rounded text-muted-foreground hover:text-foreground flex items-center gap-0.5"
+            className="h-6 px-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 flex items-center gap-1 transition-colors"
             title="Rows per page"
             onClick={() => setLimitOpen((o) => !o)}
             onBlur={(e) => {
@@ -135,9 +155,12 @@ export function BottomBar({ tabId, activeView, onViewChange, onAddRow, onShowMap
                 <button
                   key={opt}
                   className={`block w-full text-left px-3 py-1 text-xs hover:bg-accent ${
-                    opt === tab.limit ? "font-medium" : ""
+                    opt === tab.limit ? "font-medium text-foreground" : ""
                   }`}
-                  onClick={() => { setLimit(tabId, opt); setLimitOpen(false); }}
+                  onClick={() => {
+                    setLimit(tabId, opt);
+                    setLimitOpen(false);
+                  }}
                 >
                   {opt} rows
                 </button>
@@ -156,7 +179,6 @@ export function BottomBar({ tabId, activeView, onViewChange, onAddRow, onShowMap
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
-
       </div>
     </div>
   );

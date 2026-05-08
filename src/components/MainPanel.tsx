@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { DataGrid, CellValue } from "./DataGrid";
 import { MapDrawer } from "./MapDrawer";
@@ -8,7 +8,10 @@ import { BottomBar } from "./BottomBar";
 import { SqlEditor } from "./SqlEditor";
 import { RowContextMenu } from "./RowContextMenu";
 import { StructureView } from "./StructureView";
+import { SqlResultPanel } from "./SqlResultPanel";
+import { QueryLogPanel } from "./QueryLogPanel";
 import { useTabStore, type CellPrimitive } from "../store/tabs";
+import { useConnectionStore } from "../store/connections";
 
 interface ContextMenuState {
   x: number;
@@ -17,7 +20,13 @@ interface ContextMenuState {
   row: CellValue[];
 }
 
-export function MainPanel() {
+interface MainPanelProps {
+  showConsole: boolean;
+  consoleHeight: number;
+  onConsoleResizeStart: (e: React.MouseEvent) => void;
+}
+
+export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: MainPanelProps) {
   const {
     tabs,
     activeTabId,
@@ -34,12 +43,18 @@ export function MainPanel() {
     setSelectedRows,
   } = useTabStore();
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+  const { connections } = useConnectionStore();
+  const activeConn = activeTab ? connections.find((c) => c.id === activeTab.connectionId) ?? null : null;
 
   const [mapOpen, setMapOpen] = useState(false);
   const [mapGeoJson, setMapGeoJson] = useState<FeatureCollection | null>(null);
   const [activeView, setActiveView] = useState<"data" | "structure">("data");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [sqlEditorHeight, setSqlEditorHeight] = useState(260);
+  const sqlResizing = useRef(false);
+  const sqlResizeStartY = useRef(0);
+  const sqlResizeStartH = useRef(0);
 
   const handleRun = useCallback(() => {
     if (!activeTabId) return;
@@ -69,6 +84,10 @@ export function MainPanel() {
       if ((e.metaKey || e.ctrlKey) && e.key === "r") {
         e.preventDefault();
         handleRefresh();
+      }
+      if (e.key === "Escape" && activeTabId && activeTab) {
+        setSelectedRows(activeTabId, []);
+        updateTab(activeTabId, { selectedRowIndex: null });
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -250,57 +269,91 @@ export function MainPanel() {
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {activeTab.sqlMode ? (
-          <div className="flex flex-col flex-1 overflow-hidden p-3 gap-3">
-            <SqlEditor
-              value={activeTab.sql}
-              onChange={(sql) => updateTab(activeTab.id, { sql })}
-              onRun={handleRun}
-              loading={activeTab.loading}
-            />
-            {activeTab.error && (
-              <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded border border-destructive/20 shrink-0">
-                {activeTab.error}
-              </div>
-            )}
-            {activeTab.loading && !activeTab.result ? (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-                Running query...
-              </div>
-            ) : dataGrid}
-          </div>
-        ) : activeView === "structure" ? (
-          <StructureView
-            connectionId={activeTab.connectionId}
-            schema={activeTab.schema}
-            table={activeTab.table}
-          />
-        ) : (
           <div className="flex flex-col flex-1 overflow-hidden">
-            {activeTab.error && (
-              <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded border border-destructive/20 mx-3 mt-3 shrink-0">
-                {activeTab.error}
-              </div>
-            )}
-            {activeTab.loading && !activeTab.result ? (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-                Running query...
-              </div>
-            ) : dataGrid}
+            {/* SQL editor — resizable */}
+            <div style={{ height: sqlEditorHeight, flexShrink: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <SqlEditor
+                value={activeTab.sql}
+                onChange={(sql) => updateTab(activeTab.id, { sql })}
+                onRun={handleRun}
+                loading={activeTab.loading}
+                connectionId={activeTab.connectionId}
+                dbType={activeConn?.type}
+              />
+            </div>
+
+            {/* Resize handle */}
+            <div
+              style={{ height: 4, cursor: "ns-resize", flexShrink: 0, background: "transparent" }}
+              className="hover:bg-blue-500/40 transition-colors"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                sqlResizing.current = true;
+                sqlResizeStartY.current = e.clientY;
+                sqlResizeStartH.current = sqlEditorHeight;
+                function onMove(e: MouseEvent) {
+                  if (!sqlResizing.current) return;
+                  setSqlEditorHeight(Math.max(120, Math.min(800, sqlResizeStartH.current + e.clientY - sqlResizeStartY.current)));
+                }
+                function onUp() {
+                  sqlResizing.current = false;
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                }
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+            />
+
+            {/* Results + console */}
+            <SqlResultPanel tab={activeTab!} dataGrid={dataGrid} />
           </div>
+        ) : (
+          <>
+            {/* Both views always mounted — switch is pure CSS, zero JS overhead */}
+            <div className="relative flex-1 overflow-hidden">
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", overflow: "hidden", visibility: activeView === "data" ? "visible" : "hidden" }}>
+                {activeTab.error && (
+                  <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded border border-destructive/20 mx-3 mt-3 shrink-0">
+                    {activeTab.error}
+                  </div>
+                )}
+                {activeTab.loading && !activeTab.result ? (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                    Running query...
+                  </div>
+                ) : dataGrid}
+              </div>
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", overflow: "hidden", visibility: activeView === "structure" ? "visible" : "hidden" }}>
+                <StructureView
+                  connectionId={activeTab.connectionId}
+                  schema={activeTab.schema}
+                  table={activeTab.table}
+                  cachedSchema={activeTab.tableSchema}
+                />
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      <BottomBar
-        tabId={activeTab.id}
-        activeView={activeView}
-        onViewChange={setActiveView}
-        onAddRow={canEdit ? handleAddRow : undefined}
-        onShowMap={hasGeo ? () => handleShowMap(geoColIndex) : undefined}
-        hasGeo={hasGeo}
-        selectedCount={activeTab.selectedRowIndices.length}
-        totalRowCount={activeTab.result?.total_count}
-        canEdit={canEdit}
-      />
+      {!activeTab.sqlMode && showConsole && (
+        <QueryLogPanel height={consoleHeight} onResizeStart={onConsoleResizeStart} />
+      )}
+
+      {!activeTab.sqlMode && (
+        <BottomBar
+          tabId={activeTab.id}
+          activeView={activeView}
+          onViewChange={setActiveView}
+          onAddRow={canEdit ? handleAddRow : undefined}
+          onShowMap={hasGeo ? () => handleShowMap(geoColIndex) : undefined}
+          hasGeo={hasGeo}
+          selectedCount={activeTab.selectedRowIndices.length}
+          totalRowCount={activeTab.result?.total_count}
+          canEdit={canEdit}
+        />
+      )}
 
       <MapDrawer
         open={mapOpen}
@@ -316,12 +369,15 @@ export function MainPanel() {
           row={contextMenu.row}
           columns={activeTab.result.columns}
           rowIndex={contextMenu.rowIndex}
+          selectedRowIndices={activeTab.selectedRowIndices}
+          canDelete={canEdit}
           onClose={() => setContextMenu(null)}
           onShowMap={(geoColIndex) => {
             handleShowMap(geoColIndex, contextMenu.rowIndex);
             setContextMenu(null);
           }}
           onFilterBy={handleFilterBy}
+          onDeleteRows={handleDeleteRows}
         />
       )}
 

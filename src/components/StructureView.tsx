@@ -34,21 +34,26 @@ interface Props {
   connectionId: string;
   schema: string;
   table: string;
+  cachedSchema?: TableSchema | null;
 }
 
-export function StructureView({ connectionId, schema, table }: Props) {
-  const [tableSchema, setTableSchema] = useState<TableSchema | null>(null);
+export function StructureView({ connectionId, schema, table, cachedSchema }: Props) {
+  const [tableSchema, setTableSchema] = useState<TableSchema | null>(cachedSchema ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (cachedSchema) {
+      setTableSchema(cachedSchema);
+      return;
+    }
     setLoading(true);
     setError(null);
     invoke<TableSchema>("get_table_schema", { connectionId, schema, table })
       .then(setTableSchema)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [connectionId, schema, table]);
+  }, [connectionId, schema, table, cachedSchema]);
 
   if (loading) {
     return (

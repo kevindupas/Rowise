@@ -1,6 +1,15 @@
 use serde::{Deserialize, Serialize};
 use crate::db::types::{ColumnInfo, IndexInfo, TableSchema};
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TableStats {
+    pub row_count: Option<i64>,
+    pub total_size: Option<String>,
+    pub data_size: Option<String>,
+    pub index_size: Option<String>,
+    pub comment: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct TableInfo {
     pub schema: String,
@@ -365,4 +374,86 @@ ORDER BY s.INDEX_NAME
         .collect();
 
     Ok(TableSchema { columns, indexes })
+}
+
+pub async fn get_table_stats_pg(pool: &sqlx::PgPool, schema: &str, table: &str) -> Result<TableStats, String> {
+    use sqlx::Row;
+    let row = sqlx::query(r#"
+        SELECT
+            c.reltuples::bigint AS row_count,
+            pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size,
+            pg_size_pretty(pg_relation_size(c.oid)) AS data_size,
+            pg_size_pretty(pg_indexes_size(c.oid)) AS index_size,
+            obj_description(c.oid, 'pg_class') AS comment
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relname = $2
+    "#)
+    .bind(schema)
+    .bind(table)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(TableStats {
+        row_count: row.try_get("row_count").ok(),
+        total_size: row.try_get("total_size").ok(),
+        data_size: row.try_get("data_size").ok(),
+        index_size: row.try_get("index_size").ok(),
+        comment: row.try_get("comment").ok().flatten(),
+    })
+}
+
+pub async fn get_table_stats_sqlite(pool: &sqlx::SqlitePool, table: &str) -> Result<TableStats, String> {
+    use sqlx::Row;
+    let count_row = sqlx::query(&format!("SELECT COUNT(*) as cnt FROM \"{}\"", table))
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let row_count: i64 = count_row.get("cnt");
+
+    Ok(TableStats {
+        row_count: Some(row_count),
+        total_size: None,
+        data_size: None,
+        index_size: None,
+        comment: None,
+    })
+}
+
+pub async fn get_table_stats_mysql(pool: &sqlx::MySqlPool, schema: &str, table: &str) -> Result<TableStats, String> {
+    use sqlx::Row;
+    let row = sqlx::query(r#"
+        SELECT
+            TABLE_ROWS as row_count,
+            ROUND((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024, 2) as total_mb,
+            ROUND(DATA_LENGTH / 1024 / 1024, 2) as data_mb,
+            ROUND(INDEX_LENGTH / 1024 / 1024, 2) as index_mb,
+            TABLE_COMMENT as comment
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+    "#)
+    .bind(schema)
+    .bind(table)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let total_mb: Option<f64> = row.try_get("total_mb").ok().flatten();
+    let data_mb: Option<f64> = row.try_get("data_mb").ok().flatten();
+    let index_mb: Option<f64> = row.try_get("index_mb").ok().flatten();
+    let comment: Option<String> = row.try_get("comment").ok().flatten();
+
+    fn fmt_mb(v: f64) -> String {
+        if v < 1.0 { format!("{} KB", (v * 1024.0).round() as i64) }
+        else { format!("{} MB", v) }
+    }
+
+    Ok(TableStats {
+        row_count: row.try_get("row_count").ok(),
+        total_size: total_mb.map(fmt_mb),
+        data_size: data_mb.map(fmt_mb),
+        index_size: index_mb.map(fmt_mb),
+        comment: comment.filter(|s| !s.is_empty()),
+    })
 }
