@@ -1,12 +1,17 @@
 import { useRef } from "react";
 import { X } from "lucide-react";
 import { useTabStore, Tab } from "../store/tabs";
+import { useConnectionStore } from "../store/connections";
 
 export function TabBar() {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useTabStore();
+  const { tabs, getActiveTabId, setActiveTab, closeTab } = useTabStore();
+  const { activeConnectionId } = useConnectionStore();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  if (tabs.length === 0) return null;
+  const connTabs = tabs.filter((t) => t.connectionId === activeConnectionId);
+  const activeTabId = activeConnectionId ? getActiveTabId(activeConnectionId) : null;
+
+  if (connTabs.length === 0) return null;
 
   return (
     <div
@@ -14,7 +19,7 @@ export function TabBar() {
       className="flex items-end overflow-x-auto border-b bg-muted/20 shrink-0"
       style={{ scrollbarWidth: "none" }}
     >
-      {tabs.map((tab) => (
+      {connTabs.map((tab) => (
         <TabItem
           key={tab.id}
           tab={tab}
