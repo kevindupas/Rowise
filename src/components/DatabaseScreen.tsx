@@ -308,24 +308,24 @@ export function DatabaseScreen() {
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  borderLeft: isActive ? `3px solid ${conn.color ?? "#087a3d"}` : "3px solid transparent",
-                  backgroundColor: isActive ? "hsl(var(--muted))" : "transparent",
+                  opacity: isActive ? 1 : 0.45,
                 }}
               >
                 <div
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
                     backgroundColor: conn.color ?? "#087a3d",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    boxShadow: isActive ? `0 0 0 2.5px white, 0 0 0 4px ${conn.color ?? "#087a3d"}` : "none",
                   }}
                 >
-                  <Database style={{ width: 16, height: 16, color: "white" }} />
+                  <Database style={{ width: 18, height: 18, color: "white" }} />
                 </div>
-                <span style={{ fontSize: 9, color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 56, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 9, color: "hsl(var(--foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 56, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {label}
                 </span>
               </button>
