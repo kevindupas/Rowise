@@ -100,6 +100,7 @@ interface TabStore {
   showDetailPanel: boolean;
   openTab: (connectionId: string, schema: string, table: string, initialFilter?: { column: string; value: string }) => void;
   closeTab: (id: string) => void;
+  closeTabsForConnection: (connectionId: string) => void;
   setActiveTab: (id: string) => void;
   updateTab: (id: string, partial: Partial<Tab>) => void;
   runTabQuery: (id: string) => Promise<void>;
@@ -236,6 +237,13 @@ export const useTabStore = create<TabStore>()(
     set({ tabs: remaining, activeTabId: nextActiveId });
   },
 
+  closeTabsForConnection: (connectionId) => {
+    const remaining = get().tabs.filter((t) => t.connectionId !== connectionId);
+    const activeTabId = get().activeTabId;
+    const activeStillExists = remaining.some((t) => t.id === activeTabId);
+    set({ tabs: remaining, activeTabId: activeStillExists ? activeTabId : (remaining[0]?.id ?? null) });
+  },
+
   setActiveTab: (id) => set({ activeTabId: id }),
 
   updateTab: (id, partial) =>
@@ -262,12 +270,15 @@ export const useTabStore = create<TabStore>()(
     get().updateTab(id, { loading: true, error: null });
     const t0 = performance.now();
     try {
-      const result = await invoke<QueryResult>("execute_query", {
-        connectionId: tab.connectionId,
-        sql,
-        limit: tab.limit,
-        offset: tab.offset,
-      });
+      const [result] = await Promise.all([
+        invoke<QueryResult>("execute_query", {
+          connectionId: tab.connectionId,
+          sql,
+          limit: tab.limit,
+          offset: tab.offset,
+        }),
+        new Promise<void>((r) => setTimeout(r, 300)),
+      ]);
       const ms = Math.round(performance.now() - t0);
       const rowCount = result.rows.length;
       const message = `Query OK: ${sql.trim().split(/\s+/)[0].toUpperCase()} ${rowCount} row${rowCount !== 1 ? "s" : ""}`;
@@ -298,6 +309,7 @@ export const useTabStore = create<TabStore>()(
       }
     } catch (e) {
       const ms = Math.round(performance.now() - t0);
+      if (ms < 300) await new Promise<void>((r) => setTimeout(r, 300 - ms));
       const errStr = String(e);
       useQueryLogStore.getState().push({ timestamp, sql, connectionId: tab.connectionId, durationMs: ms, error: errStr });
       get().updateTab(id, {

@@ -1,5 +1,6 @@
 import { connectDb, getPassword, getSshPassword, getServerVersion, getTlsInfo } from "./tauri-commands";
 import { useConnectionStore } from "../store/connections";
+import { useTabStore } from "../store/tabs";
 import type { Connection } from "../store/connections";
 
 export async function connectToDatabase(sourceConn: Connection, dbName: string): Promise<void> {
@@ -37,6 +38,7 @@ export async function connectToDatabase(sourceConn: Connection, dbName: string):
   }
 
   if (store.connectedIds.has(target.id)) {
+    useTabStore.getState().closeTabsForConnection(sourceConn.id);
     setActiveConnection(target.id);
     return;
   }
@@ -61,6 +63,7 @@ export async function connectToDatabase(sourceConn: Connection, dbName: string):
 
   await connectDb(config);
   setConnected(target.id, true);
+  useTabStore.getState().closeTabsForConnection(sourceConn.id);
 
   Promise.all([
     getServerVersion(config).catch(() => undefined),
