@@ -1,4 +1,21 @@
-import { PanelRight, PanelLeft, PanelBottom, Moon, Sun, Monitor, RefreshCw, BarChart2, Search, MoreVertical, Unplug, X, Eye, List, Lock, Database } from "lucide-react";
+import {
+  PanelRight,
+  PanelLeft,
+  PanelBottom,
+  Moon,
+  Sun,
+  Monitor,
+  RefreshCw,
+  BarChart2,
+  Search,
+  MoreVertical,
+  Unplug,
+  X,
+  Eye,
+  List,
+  Lock,
+  Database,
+} from "lucide-react";
 import { useRef, useState, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { SchemaTree } from "./SchemaTree";
@@ -9,18 +26,40 @@ import { useConnectionStore } from "../store/connections";
 import { useTabStore } from "../store/tabs";
 
 export function DatabaseScreen() {
-  const { connections, activeConnectionId, setConnected, setActiveConnection, connectedIds, tags } =
-    useConnectionStore();
-  const { tabs, getActiveTabId, showDetailPanel, toggleDetailPanel, openTab, openSqlTab, runTabQuery, clearPendingChanges } = useTabStore();
-  const activeTabId = activeConnectionId ? getActiveTabId(activeConnectionId) : null;
+  const {
+    connections,
+    activeConnectionId,
+    setConnected,
+    setActiveConnection,
+    connectedIds,
+    tags,
+  } = useConnectionStore();
+  const {
+    tabs,
+    getActiveTabId,
+    showDetailPanel,
+    toggleDetailPanel,
+    openTab,
+    openSqlTab,
+    runTabQuery,
+    clearPendingChanges,
+  } = useTabStore();
+  const activeTabId = activeConnectionId
+    ? getActiveTabId(activeConnectionId)
+    : null;
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const { theme, setTheme } = useTheme();
 
-  const activeConn = connections.find((c) => c.id === activeConnectionId) ?? null;
+  const activeConn =
+    connections.find((c) => c.id === activeConnectionId) ?? null;
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
-  const activeTable = activeTab ? { schema: activeTab.schema, name: activeTab.table } : null;
-  const activeTag = activeConn?.tagId ? tags.find(t => t.id === activeConn.tagId) ?? null : null;
+  const activeTable = activeTab
+    ? { schema: activeTab.schema, name: activeTab.table }
+    : null;
+  const activeTag = activeConn?.tagId
+    ? (tags.find((t) => t.id === activeConn.tagId) ?? null)
+    : null;
   const activeTabStats = activeTab?.tableStats;
 
   function handleTableSelect(schema: string, name: string) {
@@ -41,27 +80,32 @@ export function DatabaseScreen() {
   const startX = useRef(0);
   const startWidth = useRef(0);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragging.current = true;
-    startX.current = e.clientX;
-    startWidth.current = detailWidth;
-    setResizing(true);
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      dragging.current = true;
+      startX.current = e.clientX;
+      startWidth.current = detailWidth;
+      setResizing(true);
 
-    function onMove(e: MouseEvent) {
-      if (!dragging.current) return;
-      const delta = startX.current - e.clientX;
-      setDetailWidth(Math.max(200, Math.min(600, startWidth.current + delta)));
-    }
-    function onUp() {
-      dragging.current = false;
-      setResizing(false);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  }, [detailWidth]);
+      function onMove(e: MouseEvent) {
+        if (!dragging.current) return;
+        const delta = startX.current - e.clientX;
+        setDetailWidth(
+          Math.max(200, Math.min(600, startWidth.current + delta)),
+        );
+      }
+      function onUp() {
+        dragging.current = false;
+        setResizing(false);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      }
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [detailWidth],
+  );
 
   function handleDisconnect() {
     if (!activeConnectionId) return;
@@ -78,24 +122,77 @@ export function DatabaseScreen() {
   const selectedTheme = theme ?? "system";
 
   return (
-    <div className={`flex flex-col h-screen bg-background text-foreground overflow-hidden ${resizing ? "select-none cursor-ew-resize" : ""}`}>
+    <div
+      className={`flex flex-col h-screen bg-background text-foreground overflow-hidden ${resizing ? "select-none cursor-ew-resize" : ""}`}
+    >
       {/* Toolbar */}
       <div
         data-tauri-drag-region
-        className="flex items-center shrink-0 select-none"
-        style={{ height: 40, backgroundColor: "hsl(var(--background))", padding: "0 12px", gap: 15 }}
+        className="flex items-center shrink-0 select-none border-b"
+        style={{
+          height: 40,
+          backgroundColor: "hsl(var(--background))",
+          padding: "0 12px",
+          gap: 15,
+        }}
       >
         {/* Left icons */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18, flexShrink: 0, color: "var(--foreground)", opacity: 0.7 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 18,
+            flexShrink: 0,
+            color: "var(--foreground)",
+            opacity: 0.7,
+          }}
+        >
           {[
-            { icon: <Unplug style={{ width: 14, height: 14 }} />, onClick: handleDisconnect, title: "Disconnect" },
-            { icon: <X style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Close tab" },
-            { icon: <Eye style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Toggle visibility" },
-            { icon: <List style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Sort" },
-            { icon: <Lock style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Lock" },
-            { icon: <Database style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Database" },
+            {
+              icon: <Unplug style={{ width: 14, height: 14 }} />,
+              onClick: handleDisconnect,
+              title: "Disconnect",
+            },
+            {
+              icon: <X style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "Close tab",
+            },
+            {
+              icon: <Eye style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "Toggle visibility",
+            },
+            {
+              icon: <List style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "Sort",
+            },
+            {
+              icon: <Lock style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "Lock",
+            },
+            {
+              icon: <Database style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "Database",
+            },
           ].map((btn, i) => (
-            <button key={i} onClick={btn.onClick} title={btn.title} style={{ display: "flex", alignItems: "center", background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit" }}>
+            <button
+              key={i}
+              onClick={btn.onClick}
+              title={btn.title}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                color: "inherit",
+              }}
+            >
               {btn.icon}
             </button>
           ))}
@@ -115,8 +212,12 @@ export function DatabaseScreen() {
               fontWeight: 700,
               letterSpacing: "0.5px",
               flexShrink: 0,
-              backgroundColor: activeTab?.sqlMode ? "hsl(var(--foreground))" : "transparent",
-              color: activeTab?.sqlMode ? "hsl(var(--background))" : "hsl(var(--foreground))",
+              backgroundColor: activeTab?.sqlMode
+                ? "hsl(var(--foreground))"
+                : "transparent",
+              color: activeTab?.sqlMode
+                ? "hsl(var(--background))"
+                : "hsl(var(--foreground))",
               border: "1.5px solid hsl(var(--foreground) / 0.25)",
               cursor: "pointer",
             }}
@@ -170,26 +271,43 @@ export function DatabaseScreen() {
           >
             {/* Progress shimmer */}
             {activeTab?.loading && (
-              <div style={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: 13,
-                overflow: "hidden",
-                pointerEvents: "none",
-              }}>
-                <div style={{
+              <div
+                style={{
                   position: "absolute",
-                  top: 0,
-                  bottom: 0,
-                  width: "25%",
-                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)",
-                  animation: "progress-indeterminate 1.2s ease-in-out infinite",
-                }} />
+                  inset: 0,
+                  borderRadius: 13,
+                  overflow: "hidden",
+                  pointerEvents: "none",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    width: "25%",
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)",
+                    animation:
+                      "progress-indeterminate 1.2s ease-in-out infinite",
+                  }}
+                />
               </div>
             )}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", position: "relative" }}>
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                position: "relative",
+              }}
+            >
               {activeTag && `${activeTag.name.toUpperCase()} | `}
-              {activeConn.type === "postgresql" ? "PostgreSQL" : activeConn.type === "mysql" ? "MySQL" : "SQLite"}
+              {activeConn.type === "postgresql"
+                ? "PostgreSQL"
+                : activeConn.type === "mysql"
+                  ? "MySQL"
+                  : "SQLite"}
               {activeConn.serverVersion ? ` ${activeConn.serverVersion}` : ""}
               {activeConn.tlsVersion ? ` : ${activeConn.tlsVersion}` : ""}
               {activeConn.ssh ? " : SSH" : ""}
@@ -198,7 +316,16 @@ export function DatabaseScreen() {
               {activeTab ? ` : ${activeTab.schema}.${activeTab.table}` : ""}
             </span>
             {activeTabStats?.total_size && (
-              <span style={{ fontSize: 12, opacity: 0.9, flexShrink: 0, marginLeft: 12, fontVariantNumeric: "tabular-nums", position: "relative" }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  opacity: 0.9,
+                  flexShrink: 0,
+                  marginLeft: 12,
+                  fontVariantNumeric: "tabular-nums",
+                  position: "relative",
+                }}
+              >
                 {activeTabStats.total_size}
               </span>
             )}
@@ -206,17 +333,48 @@ export function DatabaseScreen() {
         )}
 
         {/* Right icons */}
-        <div style={{ display: "flex", alignItems: "center", flexShrink: 0, gap: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+            gap: 4,
+          }}
+        >
           {[
-            { icon: <BarChart2 style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Stats" },
-            { icon: <Search style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Search" },
-            { icon: <MoreVertical style={{ width: 14, height: 14 }} />, onClick: undefined, title: "More" },
+            {
+              icon: <BarChart2 style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "Stats",
+            },
+            {
+              icon: <Search style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "Search",
+            },
+            {
+              icon: <MoreVertical style={{ width: 14, height: 14 }} />,
+              onClick: undefined,
+              title: "More",
+            },
           ].map((btn, i) => (
             <button
               key={i}
               onClick={btn.onClick}
               title={btn.title}
-              style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: "none", border: "none", cursor: "pointer", opacity: 0.7, color: "var(--foreground)" }}
+              style={{
+                width: 24,
+                height: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 4,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                opacity: 0.7,
+                color: "var(--foreground)",
+              }}
               className="hover:bg-black/10 dark:hover:bg-white/10 hover:opacity-100 transition-all"
             >
               {btn.icon}
@@ -227,25 +385,61 @@ export function DatabaseScreen() {
               title="Refresh (⌘R)"
               disabled={activeTab.loading}
               onClick={() => {
-                if (activeTab.pendingChanges.length > 0) setShowDiscardModal(true);
+                if (activeTab.pendingChanges.length > 0)
+                  setShowDiscardModal(true);
                 else runTabQuery(activeTab.id);
               }}
-              style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: "none", border: "none", cursor: activeTab.loading ? "default" : "pointer", color: "var(--foreground)" }}
+              style={{
+                width: 24,
+                height: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 4,
+                background: "none",
+                border: "none",
+                cursor: activeTab.loading ? "default" : "pointer",
+                color: "var(--foreground)",
+              }}
               className="hover:bg-black/10 dark:hover:bg-white/10 transition-all"
             >
               <RefreshCw
-                style={{ width: 14, height: 14, opacity: activeTab.loading ? 1 : 0.7 }}
+                style={{
+                  width: 14,
+                  height: 14,
+                  opacity: activeTab.loading ? 1 : 0.7,
+                }}
                 className={activeTab.loading ? "animate-spin" : ""}
               />
             </button>
           )}
 
-          <span style={{ width: 1, height: 14, backgroundColor: "currentColor", opacity: 0.2, margin: "0 2px" }} />
+          <span
+            style={{
+              width: 1,
+              height: 14,
+              backgroundColor: "currentColor",
+              opacity: 0.2,
+              margin: "0 2px",
+            }}
+          />
 
           <button
             onClick={() => setShowSidebar((v) => !v)}
             title="Toggle sidebar"
-            style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: "none", border: "none", cursor: "pointer", opacity: showSidebar ? 1 : 0.4, color: "var(--foreground)" }}
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 4,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              opacity: showSidebar ? 1 : 0.4,
+              color: "var(--foreground)",
+            }}
             className="hover:bg-black/10 dark:hover:bg-white/10 transition-all"
           >
             <PanelLeft style={{ width: 14, height: 14 }} />
@@ -254,7 +448,19 @@ export function DatabaseScreen() {
           <button
             onClick={() => setShowConsole((v) => !v)}
             title="Toggle console"
-            style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: "none", border: "none", cursor: "pointer", opacity: showConsole ? 1 : 0.4, color: "var(--foreground)" }}
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 4,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              opacity: showConsole ? 1 : 0.4,
+              color: "var(--foreground)",
+            }}
             className="hover:bg-black/10 dark:hover:bg-white/10 transition-all"
           >
             <PanelBottom style={{ width: 14, height: 14 }} />
@@ -263,7 +469,19 @@ export function DatabaseScreen() {
           <button
             onClick={toggleDetailPanel}
             title="Toggle detail panel"
-            style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: "none", border: "none", cursor: "pointer", opacity: showDetailPanel ? 1 : 0.4, color: "var(--foreground)" }}
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 4,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              opacity: showDetailPanel ? 1 : 0.4,
+              color: "var(--foreground)",
+            }}
             className="hover:bg-black/10 dark:hover:bg-white/10 transition-all"
           >
             <PanelRight style={{ width: 14, height: 14 }} />
@@ -272,12 +490,28 @@ export function DatabaseScreen() {
           <button
             onClick={cycleTheme}
             title={`Theme: ${selectedTheme}`}
-            style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, background: "none", border: "none", cursor: "pointer", opacity: 0.7, color: "var(--foreground)" }}
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 4,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              opacity: 0.7,
+              color: "var(--foreground)",
+            }}
             className="hover:bg-black/10 dark:hover:bg-white/10 hover:opacity-100 transition-all"
           >
-            {selectedTheme === "dark" ? <Moon style={{ width: 14, height: 14 }} />
-              : selectedTheme === "light" ? <Sun style={{ width: 14, height: 14 }} />
-              : <Monitor style={{ width: 14, height: 14 }} />}
+            {selectedTheme === "dark" ? (
+              <Moon style={{ width: 14, height: 14 }} />
+            ) : selectedTheme === "light" ? (
+              <Sun style={{ width: 14, height: 14 }} />
+            ) : (
+              <Monitor style={{ width: 14, height: 14 }} />
+            )}
           </button>
         </div>
       </div>
@@ -286,60 +520,99 @@ export function DatabaseScreen() {
       <div className="flex flex-1 overflow-hidden">
         {/* Connections sidebar */}
         <div
-          className="shrink-0 flex flex-col items-center overflow-y-auto"
-          style={{ width: 90, backgroundColor: "hsl(var(--muted))", gap: 0, borderRight: "1px solid hsl(var(--border))" }}
+          className="shrink-0 flex flex-col items-center border-r overflow-y-auto"
+          style={{
+            width: 90,
+            backgroundColor: "hsl(var(--background))",
+            gap: 0,
+          }}
         >
-          {connections.filter((c) => connectedIds.has(c.id)).map((conn) => {
-            const isActive = conn.id === activeConnectionId;
-            return (
-              <button
-                key={conn.id}
-                onClick={() => setActiveConnection(conn.id)}
-                title={`${conn.name} : ${conn.database}`}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 5,
-                  padding: "12px 6px",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  opacity: isActive ? 1 : 0.45,
-                }}
-              >
-                <div
+          {connections
+            .filter((c) => connectedIds.has(c.id))
+            .map((conn) => {
+              const isActive = conn.id === activeConnectionId;
+              return (
+                <button
+                  key={conn.id}
+                  onClick={() => setActiveConnection(conn.id)}
+                  title={`${conn.name} : ${conn.database}`}
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 10,
-                    backgroundColor: conn.color ?? "#087a3d",
+                    width: "100%",
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: isActive ? `0 0 0 2.5px hsl(var(--background)), 0 0 0 4px ${conn.color ?? "#087a3d"}` : "none",
+                    gap: 5,
+                    padding: "12px 6px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    opacity: isActive ? 1 : 0.45,
                   }}
                 >
-                  <Database style={{ width: 18, height: 18, color: "white" }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                  <span style={{ fontSize: 9, fontWeight: 600, color: "hsl(var(--foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 78, wordBreak: "break-word" }}>
-                    {conn.name}
-                  </span>
-                  <span style={{ fontSize: 8, color: "hsl(var(--muted-foreground))", textAlign: "center", lineHeight: 1.2, maxWidth: 78, wordBreak: "break-word" }}>
-                    {conn.database}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      backgroundColor: conn.color ?? "#087a3d",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: isActive
+                        ? `0 0 0 2.5px hsl(var(--background)), 0 0 0 4px ${conn.color ?? "#087a3d"}`
+                        : "none",
+                    }}
+                  >
+                    <Database
+                      style={{ width: 18, height: 18, color: "white" }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 600,
+                        color: "hsl(var(--foreground))",
+                        textAlign: "center",
+                        lineHeight: 1.2,
+                        maxWidth: 78,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {conn.name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 8,
+                        color: "hsl(var(--muted-foreground))",
+                        textAlign: "center",
+                        lineHeight: 1.2,
+                        maxWidth: 78,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {conn.database}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
         </div>
 
         {/* Schema sidebar */}
         {showSidebar && (
-          <div className="border-r shrink-0 flex flex-col overflow-hidden relative" style={{ width: sidebarWidth }}>
+          <div
+            className="border-r shrink-0 flex flex-col overflow-hidden relative"
+            style={{ width: sidebarWidth }}
+          >
             {activeConnectionId && (
               <SchemaTree
                 connectionId={activeConnectionId}
@@ -354,7 +627,9 @@ export function DatabaseScreen() {
                 const startX = e.clientX;
                 const startW = sidebarWidth;
                 function onMove(e: MouseEvent) {
-                  setSidebarWidth(Math.max(160, Math.min(480, startW + e.clientX - startX)));
+                  setSidebarWidth(
+                    Math.max(160, Math.min(480, startW + e.clientX - startX)),
+                  );
                 }
                 function onUp() {
                   window.removeEventListener("mousemove", onMove);
@@ -379,7 +654,16 @@ export function DatabaseScreen() {
               consoleResizeStartH.current = consoleHeight;
               function onMove(ev: MouseEvent) {
                 if (!consoleResizing.current) return;
-                setConsoleHeight(Math.max(80, Math.min(600, consoleResizeStartH.current - (ev.clientY - consoleResizeStartY.current))));
+                setConsoleHeight(
+                  Math.max(
+                    80,
+                    Math.min(
+                      600,
+                      consoleResizeStartH.current -
+                        (ev.clientY - consoleResizeStartY.current),
+                    ),
+                  ),
+                );
               }
               function onUp() {
                 consoleResizing.current = false;
@@ -394,7 +678,10 @@ export function DatabaseScreen() {
 
         {/* Detail panel */}
         {showDetailPanel && activeTab && (
-          <div className="border-l shrink-0 flex flex-col relative overflow-hidden" style={{ width: detailWidth }}>
+          <div
+            className="border-l shrink-0 flex flex-col relative overflow-hidden"
+            style={{ width: detailWidth }}
+          >
             <div
               className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500/40 z-10"
               onMouseDown={onMouseDown}
@@ -407,11 +694,15 @@ export function DatabaseScreen() {
       {showDiscardModal && activeTab && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-background border rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="font-semibold text-base mb-2">Discard all changes?</h3>
+            <h3 className="font-semibold text-base mb-2">
+              Discard all changes?
+            </h3>
             <p className="text-sm text-muted-foreground mb-4">
               Tips: You can commit the changes by
-              <br />1. Command + S (Mac) / Ctrl + S (Windows)
-              <br />2. Click the save button in the toolbar.
+              <br />
+              1. Command + S (Mac) / Ctrl + S (Windows)
+              <br />
+              2. Click the save button in the toolbar.
             </p>
             <div className="flex justify-end gap-2">
               <button
