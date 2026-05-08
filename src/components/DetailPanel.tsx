@@ -3,6 +3,7 @@ import { useTabStore, type CellPrimitive, type ColumnInfo, type TableStats } fro
 import { CellValue, QueryColumn } from "./DataGrid";
 import { ScrollArea } from "./ui/scroll-area";
 import { Search, SlidersHorizontal, ChevronDown, Send, Bot } from "lucide-react";
+import { GeoPreview } from "./GeoPreview";
 
 // ─── Type helpers ────────────────────────────────────────────────────────────
 
@@ -441,9 +442,16 @@ function FieldRow({ column, cell, schemaCol, canEdit, onEdit, onPretty, pendingV
             className="flex-1 bg-transparent px-2 py-1.5 text-xs outline-none font-mono"
           />
         ) : isGeo ? (
-          <pre className="flex-1 px-2 py-1.5 text-xs font-mono text-blue-500 whitespace-pre-wrap break-all max-h-24 overflow-y-auto">
-            {displayValue || <span className="text-muted-foreground/50 italic">NULL</span>}
-          </pre>
+          <div className="flex-1 px-2 py-1.5">
+            {cell?.type === "Geo" && cell.value.geojson ? (
+              <GeoPreview
+                geojson={{ type: "FeatureCollection", features: [{ type: "Feature", geometry: cell.value.geojson as never, properties: {} }] }}
+                height={140}
+              />
+            ) : (
+              <span className="text-xs font-mono text-muted-foreground/50 italic">NULL</span>
+            )}
+          </div>
         ) : isJsonType && !hasPending ? (
           <div className="flex-1 cursor-text overflow-x-auto" onClick={startEdit}>
             <JsonDisplay value={(cell as { type: "Text"; value: string }).value} />
