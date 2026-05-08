@@ -139,9 +139,29 @@ export function DatabaseScreen() {
               fontFamily: "'SF Mono', 'Monaco', 'Menlo', monospace",
               color: "white",
               overflow: "hidden",
+              position: "relative",
             }}
           >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {/* Progress shimmer */}
+            {activeTab?.loading && (
+              <div style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: 13,
+                overflow: "hidden",
+                pointerEvents: "none",
+              }}>
+                <div style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  width: "25%",
+                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)",
+                  animation: "progress-indeterminate 1.2s ease-in-out infinite",
+                }} />
+              </div>
+            )}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", position: "relative" }}>
               {activeTag && `${activeTag.name.toUpperCase()} | `}
               {activeConn.type === "postgresql" ? "PostgreSQL" : activeConn.type === "mysql" ? "MySQL" : "SQLite"}
               {activeConn.serverVersion ? ` ${activeConn.serverVersion}` : ""}
@@ -152,7 +172,7 @@ export function DatabaseScreen() {
               {activeTab ? ` : ${activeTab.schema}.${activeTab.table}` : ""}
             </span>
             {activeTabStats?.total_size && (
-              <span style={{ fontSize: 12, opacity: 0.9, flexShrink: 0, marginLeft: 12, fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ fontSize: 12, opacity: 0.9, flexShrink: 0, marginLeft: 12, fontVariantNumeric: "tabular-nums", position: "relative" }}>
                 {activeTabStats.total_size}
               </span>
             )}
@@ -163,7 +183,7 @@ export function DatabaseScreen() {
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0, gap: 4 }}>
           {[
             { icon: <BarChart2 style={{ width: 14, height: 14 }} />, onClick: undefined, title: "Stats" },
-            ...(activeTab ? [{ icon: <RefreshCw style={{ width: 14, height: 14 }} />, onClick: () => {
+            ...(activeTab ? [{ icon: <RefreshCw style={{ width: 14, height: 14, animation: activeTab.loading ? "spin 0.8s linear infinite" : "none" }} />, onClick: () => {
               if (activeTab.pendingChanges.length > 0) setShowDiscardModal(true);
               else runTabQuery(activeTab.id);
             }, title: "Refresh (⌘R)" }] : []),
