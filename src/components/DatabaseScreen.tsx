@@ -68,7 +68,7 @@ export function DatabaseScreen() {
   }
 
   const [showSidebar, setShowSidebar] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(224);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
   const [detailWidth, setDetailWidth] = useState(288);
   const [showConsole, setShowConsole] = useState(false);
   const [consoleHeight, setConsoleHeight] = useState(200);
