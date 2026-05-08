@@ -685,7 +685,7 @@ async fn fetch_tls_info_inner(
             .fetch_optional(&pool)
             .await
             .map_err(|e| e.to_string())?;
-            Ok(row.map(|r| r.get::<String, _>(0)))
+            Ok(row.and_then(|r| r.try_get::<String, _>(0).ok()))
         }
         DbType::Mysql => {
             use sqlx::mysql::MySqlConnectOptions;
