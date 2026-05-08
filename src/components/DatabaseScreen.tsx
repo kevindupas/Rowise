@@ -4,6 +4,7 @@ import { useTheme } from "next-themes";
 import { SchemaTree } from "./SchemaTree";
 import { MainPanel } from "./MainPanel";
 import { DetailPanel } from "./DetailPanel";
+import { OpenDatabaseModal } from "./OpenDatabaseModal";
 import { useConnectionStore } from "../store/connections";
 import { useTabStore } from "../store/tabs";
 
@@ -12,6 +13,7 @@ export function DatabaseScreen() {
     useConnectionStore();
   const { tabs, activeTabId, showDetailPanel, toggleDetailPanel, openTab, openSqlTab, runTabQuery, clearPendingChanges } = useTabStore();
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showDbModal, setShowDbModal] = useState(false);
   const { theme, setTheme } = useTheme();
 
   const activeConn = connections.find((c) => c.id === activeConnectionId) ?? null;
@@ -112,13 +114,36 @@ export function DatabaseScreen() {
               fontWeight: 700,
               letterSpacing: "0.5px",
               flexShrink: 0,
-              backgroundColor: activeTab?.sqlMode ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.18)",
-              color: activeTab?.sqlMode ? "#000" : "#fff",
-              border: "none",
+              backgroundColor: activeTab?.sqlMode ? "hsl(var(--foreground))" : "transparent",
+              color: activeTab?.sqlMode ? "hsl(var(--background))" : "hsl(var(--foreground))",
+              border: "1.5px solid hsl(var(--foreground) / 0.25)",
               cursor: "pointer",
             }}
           >
             SQL
+          </button>
+        )}
+
+        {/* DB selector button */}
+        {activeConn && activeConn.type !== "sqlite" && (
+          <button
+            onClick={() => setShowDbModal(true)}
+            title="Open database"
+            style={{
+              height: 18,
+              padding: "0 6px",
+              borderRadius: 3,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.5px",
+              flexShrink: 0,
+              backgroundColor: "transparent",
+              color: "hsl(var(--foreground))",
+              border: "1.5px solid hsl(var(--foreground) / 0.25)",
+              cursor: "pointer",
+            }}
+          >
+            DB
           </button>
         )}
 
@@ -356,6 +381,12 @@ export function DatabaseScreen() {
         </div>
       )}
 
+      {showDbModal && activeConn && (
+        <OpenDatabaseModal
+          activeConn={activeConn}
+          onClose={() => setShowDbModal(false)}
+        />
+      )}
     </div>
   );
 }
