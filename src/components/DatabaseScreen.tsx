@@ -255,14 +255,14 @@ export function DatabaseScreen() {
             style={{
               flex: 1,
               minWidth: 0,
-              height: 26,
-              borderRadius: 13,
+              height: 20,
+              borderRadius: 10,
               backgroundColor: activeConn.color ?? "#087a3d",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "0 15px",
-              fontSize: 13,
+              padding: "0 10px",
+              fontSize: 11,
               fontFamily: "'SF Mono', 'Monaco', 'Menlo', monospace",
               color: "white",
               overflow: "hidden",
@@ -275,7 +275,7 @@ export function DatabaseScreen() {
                 style={{
                   position: "absolute",
                   inset: 0,
-                  borderRadius: 13,
+                  borderRadius: 10,
                   overflow: "hidden",
                   pointerEvents: "none",
                 }}
