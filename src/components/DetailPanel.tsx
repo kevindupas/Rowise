@@ -326,6 +326,37 @@ function AssistantPanel() {
   );
 }
 
+// ─── Geo field display (toggle WKT / map) ────────────────────────────────────
+
+function GeoFieldDisplay({ cell }: { cell: CellValue }) {
+  const [showMap, setShowMap] = useState(false);
+  const hasGeo = cell?.type === "Geo" && cell.value.geojson;
+
+  return (
+    <div className="flex-1 px-2 py-1.5">
+      <div className="flex items-center justify-between mb-1">
+        <pre className={`text-xs font-mono text-blue-500 whitespace-pre-wrap break-all ${showMap ? "hidden" : "max-h-20 overflow-y-auto"}`}>
+          {cell?.type === "Geo" ? (cell.value.wkt ?? "geometry") : <span className="text-muted-foreground/50 italic">NULL</span>}
+        </pre>
+        {hasGeo && (
+          <button
+            onClick={() => setShowMap((v) => !v)}
+            className="shrink-0 ml-2 px-2 py-0.5 rounded text-xs border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            {showMap ? "WKT" : "Map"}
+          </button>
+        )}
+      </div>
+      {showMap && hasGeo && (
+        <GeoPreview
+          geojson={{ type: "FeatureCollection", features: [{ type: "Feature", geometry: (cell as Extract<CellValue, { type: "Geo" }>).value.geojson as never, properties: {} }] }}
+          height={140}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Field row ────────────────────────────────────────────────────────────────
 
 interface FieldRowProps {
@@ -442,16 +473,7 @@ function FieldRow({ column, cell, schemaCol, canEdit, onEdit, onPretty, pendingV
             className="flex-1 bg-transparent px-2 py-1.5 text-xs outline-none font-mono"
           />
         ) : isGeo ? (
-          <div className="flex-1 px-2 py-1.5">
-            {cell?.type === "Geo" && cell.value.geojson ? (
-              <GeoPreview
-                geojson={{ type: "FeatureCollection", features: [{ type: "Feature", geometry: cell.value.geojson as never, properties: {} }] }}
-                height={140}
-              />
-            ) : (
-              <span className="text-xs font-mono text-muted-foreground/50 italic">NULL</span>
-            )}
-          </div>
+          <GeoFieldDisplay cell={cell} />
         ) : isJsonType && !hasPending ? (
           <div className="flex-1 cursor-text overflow-x-auto" onClick={startEdit}>
             <JsonDisplay value={(cell as { type: "Text"; value: string }).value} />
