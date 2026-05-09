@@ -67,28 +67,18 @@ export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tabs */}
-      <div className="flex items-center justify-center shrink-0 border-b" style={{ padding: "0 8px" }}>
-        {(["items", "queries", "history"] as SidebarTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              flex: 1,
-              padding: "8px 4px",
-              fontSize: 12,
-              fontWeight: activeTab === tab ? 600 : 400,
-              color: activeTab === tab ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-              background: "none",
-              border: "none",
-              borderBottom: activeTab === tab ? "2px solid hsl(var(--foreground))" : "2px solid transparent",
-              cursor: "pointer",
-              marginBottom: -1,
-              textAlign: "center",
-            }}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
+      <div className="shrink-0 border-b px-2 pt-2 pb-1">
+        <div className="flex items-center bg-muted rounded-md p-0.5">
+          {(["items", "queries", "history"] as SidebarTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 px-3 py-1 text-xs font-medium rounded transition-colors ${activeTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeTab === "items" && (
