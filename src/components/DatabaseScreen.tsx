@@ -41,6 +41,7 @@ export function DatabaseScreen() {
     toggleDetailPanel,
     openTab,
     openSqlTab,
+    openSchemaTab,
     runTabQuery,
     clearPendingChanges,
   } = useTabStore();
@@ -617,6 +618,7 @@ export function DatabaseScreen() {
               <SchemaTree
                 connectionId={activeConnectionId}
                 onTableSelect={handleTableSelect}
+                onSchemaSelect={(schema) => openSchemaTab(activeConnectionId, schema)}
                 activeTable={activeTable}
               />
             )}

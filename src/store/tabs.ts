@@ -122,6 +122,7 @@ interface TabStore {
   commitChanges: (tabId: string) => Promise<void>;
   setSelectedRows: (tabId: string, indices: number[]) => void;
   openSqlTab: (connectionId: string) => void;
+  openSchemaTab: (connectionId: string, schema: string) => void;
 }
 
 function buildWhereClause(filters: FilterRule[]): string {
@@ -487,6 +488,42 @@ export const useTabStore = create<TabStore>()(
       lastQueryMessage: null,
     };
     set((state) => ({ tabs: [...state.tabs, tab], activeTabIdByConnection: { ...state.activeTabIdByConnection, [connectionId]: id } }));
+  },
+
+  openSchemaTab: (connectionId, schema) => {
+    const existing = get().tabs.find(
+      (t) => t.connectionId === connectionId && t.label === `Tables.${schema}` && t.sqlMode
+    );
+    if (existing) {
+      set((state) => ({ activeTabIdByConnection: { ...state.activeTabIdByConnection, [connectionId]: existing.id } }));
+      return;
+    }
+    const id = crypto.randomUUID();
+    const sql = `SELECT
+  table_name AS name,
+  table_schema AS schema,
+  table_type AS kind,
+  pg_catalog.pg_get_userbyid(c.relowner) AS owner,
+  GREATEST(c.reltuples::bigint, -1) AS estimated_rows,
+  pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size,
+  pg_size_pretty(pg_relation_size(c.oid)) AS data_size,
+  pg_size_pretty(pg_total_relation_size(c.oid) - pg_relation_size(c.oid)) AS index_size
+FROM information_schema.tables t
+LEFT JOIN pg_class c ON c.relname = t.table_name
+LEFT JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+WHERE t.table_schema = '${schema}'
+ORDER BY table_name`;
+    const tab: Tab = {
+      id, connectionId, schema, table: "",
+      label: `Tables.${schema}`,
+      sql, result: null, tableSchema: null, tableStats: null,
+      selectedRowIndex: null, selectedRowIndices: [], pendingChanges: [],
+      loading: false, error: null, filters: [], showFilterBar: false,
+      sqlMode: true, limit: 500, offset: 0, sqlLogs: [],
+      lastQueryMs: null, lastQueryMessage: null,
+    };
+    set((state) => ({ tabs: [...state.tabs, tab], activeTabIdByConnection: { ...state.activeTabIdByConnection, [connectionId]: id } }));
+    get().runTabQuery(id);
   },
 
   setPendingUpdate: (tabId, rowIndex, col, newValue) =>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ChevronRight, ChevronDown, Table2, Search, SlidersHorizontal, Plus, ChevronsUpDown } from "lucide-react";
+import type { ColumnInfo } from "../store/tabs";
 
 interface TableInfo {
   schema: string;
@@ -10,14 +11,17 @@ interface TableInfo {
 interface Props {
   connectionId: string;
   onTableSelect: (schema: string, table: string) => void;
+  onSchemaSelect?: (schema: string) => void;
   activeTable: { schema: string; name: string } | null;
 }
 
 type SidebarTab = "items" | "queries" | "history";
 
-export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) {
+export function SchemaTree({ connectionId, onTableSelect, onSchemaSelect, activeTable }: Props) {
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
+  const [tableColumns, setTableColumns] = useState<Record<string, ColumnInfo[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SidebarTab>("items");
@@ -109,42 +113,90 @@ export function SchemaTree({ connectionId, onTableSelect, activeTable }: Props) 
             {error && <div className="px-3 py-2 text-xs text-destructive">Error: {error}</div>}
             {!loading && !error && Object.entries(filteredGrouped).map(([schema, tableNames]) => (
               <div key={schema}>
-                <button
-                  onClick={() =>
-                    setExpanded((prev) => {
-                      const next = new Set(prev);
-                      next.has(schema) ? next.delete(schema) : next.add(schema);
-                      return next;
-                    })
-                  }
-                  className="flex items-center gap-1 w-full px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground uppercase tracking-wider"
-                >
-                  {expanded.has(schema) ? (
-                    <ChevronDown className="h-3 w-3 shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3 shrink-0" />
-                  )}
-                  <span className="truncate">{schema}</span>
-                  <span className="ml-auto opacity-50">{tableNames.length}</span>
-                </button>
+                <div className="flex items-center w-full px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <button
+                    onClick={() =>
+                      setExpanded((prev) => {
+                        const next = new Set(prev);
+                        next.has(schema) ? next.delete(schema) : next.add(schema);
+                        return next;
+                      })
+                    }
+                    className="flex items-center gap-1 flex-1 min-w-0 hover:text-foreground text-left"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+                  >
+                    {expanded.has(schema) ? (
+                      <ChevronDown className="h-3 w-3 shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3 shrink-0" />
+                    )}
+                    <span className="truncate">{schema}</span>
+                  </button>
+                  <button
+                    onClick={() => onSchemaSelect?.(schema)}
+                    className="hover:text-foreground ml-1 opacity-50 hover:opacity-100"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+                    title={`Open Tables.${schema}`}
+                  >
+                    {tableNames.length}
+                  </button>
+                </div>
 
                 {expanded.has(schema) &&
                   tableNames.map((name) => {
-                    const isActive =
-                      activeTable?.schema === schema && activeTable?.name === name;
+                    const isActive = activeTable?.schema === schema && activeTable?.name === name;
+                    const tableKey = `${schema}.${name}`;
+                    const isTableExpanded = expandedTables.has(tableKey);
+                    const cols = tableColumns[tableKey];
                     return (
-                      <button
-                        key={name}
-                        onClick={() => onTableSelect(schema, name)}
-                        className={`flex items-center gap-2 w-full px-6 py-1 text-sm text-left transition-colors ${
-                          isActive
-                            ? "bg-accent text-accent-foreground"
-                            : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        <Table2 className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{name}</span>
-                      </button>
+                      <div key={name}>
+                        <div className={`flex items-center w-full px-2 py-0.5 text-sm transition-colors ${isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}>
+                          <button
+                            onClick={() => {
+                              setExpandedTables((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(tableKey)) {
+                                  next.delete(tableKey);
+                                } else {
+                                  next.add(tableKey);
+                                  if (!cols) {
+                                    invoke<{ columns: ColumnInfo[] }>("get_table_schema", { connectionId, schema, table: name })
+                                      .then((s) => setTableColumns((prev) => ({ ...prev, [tableKey]: s.columns })))
+                                      .catch(() => {});
+                                  }
+                                }
+                                return next;
+                              });
+                            }}
+                            className="shrink-0 p-0.5"
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+                          >
+                            {isTableExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          </button>
+                          <button
+                            onClick={() => onTableSelect(schema, name)}
+                            className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+                          >
+                            <Table2 className="h-3 w-3 shrink-0" />
+                            <span className="truncate text-xs">{name}</span>
+                          </button>
+                        </div>
+                        {isTableExpanded && (
+                          <div className="pb-1">
+                            {!cols && <div className="px-10 py-0.5 text-xs text-muted-foreground">Loading…</div>}
+                            {cols?.map((col) => (
+                              <div key={col.name} className="flex items-center justify-between px-10 py-0.5 text-xs text-muted-foreground hover:bg-muted/50">
+                                <div className="flex items-center gap-1 min-w-0">
+                                  {col.is_primary_key && <span style={{ color: "#f59e0b", fontSize: 9 }}>🔑</span>}
+                                  <span className="truncate">{col.name}</span>
+                                </div>
+                                <span className="shrink-0 ml-2 opacity-60 font-mono text-xs">{col.type_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
               </div>
