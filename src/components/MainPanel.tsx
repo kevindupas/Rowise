@@ -247,7 +247,7 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
   const dataGrid = (
     <DataGrid
       result={activeTab.result}
-      tableSchema={activeTab.tableSchema}
+      tableSchema={activeTab.schemaMode ? null : activeTab.tableSchema}
       pendingChanges={activeTab.pendingChanges}
       selectedRowIndices={activeTab.selectedRowIndices}
       onNavigateFK={handleNavigateFK}
