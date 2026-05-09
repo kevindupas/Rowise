@@ -87,6 +87,7 @@ export interface Tab {
   filters: FilterRule[];
   showFilterBar: boolean;
   sqlMode: boolean;
+  schemaMode: boolean;
   limit: number;
   offset: number;
   sqlLogs: SqlLogEntry[];
@@ -206,6 +207,7 @@ export const useTabStore = create<TabStore>()(
       filters,
       showFilterBar: initialFilter != null,
       sqlMode: false,
+      schemaMode: false,
       limit: 300,
       offset: 0,
       sqlLogs: [],
@@ -481,6 +483,7 @@ export const useTabStore = create<TabStore>()(
       filters: [],
       showFilterBar: false,
       sqlMode: true,
+      schemaMode: false,
       limit: 300,
       offset: 0,
       sqlLogs: [],
@@ -519,7 +522,7 @@ ORDER BY table_name`;
       sql, result: null, tableSchema: null, tableStats: null,
       selectedRowIndex: null, selectedRowIndices: [], pendingChanges: [],
       loading: false, error: null, filters: [], showFilterBar: false,
-      sqlMode: true, limit: 500, offset: 0, sqlLogs: [],
+      sqlMode: true, schemaMode: true, limit: 500, offset: 0, sqlLogs: [],
       lastQueryMs: null, lastQueryMessage: null,
     };
     set((state) => ({ tabs: [...state.tabs, tab], activeTabIdByConnection: { ...state.activeTabIdByConnection, [connectionId]: id } }));

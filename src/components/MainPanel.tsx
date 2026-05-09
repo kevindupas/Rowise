@@ -270,40 +270,42 @@ export function MainPanel({ showConsole, consoleHeight, onConsoleResizeStart }: 
       <div className="flex flex-col flex-1 overflow-hidden">
         {activeTab.sqlMode ? (
           <div className="flex flex-col flex-1 overflow-hidden">
-            {/* SQL editor — resizable */}
-            <div style={{ height: sqlEditorHeight, flexShrink: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-              <SqlEditor
-                value={activeTab.sql}
-                onChange={(sql) => updateTab(activeTab.id, { sql })}
-                onRun={handleRun}
-                loading={activeTab.loading}
-                connectionId={activeTab.connectionId}
-                dbType={activeConn?.type}
-              />
-            </div>
-
-            {/* Resize handle */}
-            <div
-              style={{ height: 4, cursor: "ns-resize", flexShrink: 0, background: "transparent" }}
-              className="hover:bg-blue-500/40 transition-colors"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                sqlResizing.current = true;
-                sqlResizeStartY.current = e.clientY;
-                sqlResizeStartH.current = sqlEditorHeight;
-                function onMove(e: MouseEvent) {
-                  if (!sqlResizing.current) return;
-                  setSqlEditorHeight(Math.max(120, Math.min(800, sqlResizeStartH.current + e.clientY - sqlResizeStartY.current)));
-                }
-                function onUp() {
-                  sqlResizing.current = false;
-                  window.removeEventListener("mousemove", onMove);
-                  window.removeEventListener("mouseup", onUp);
-                }
-                window.addEventListener("mousemove", onMove);
-                window.addEventListener("mouseup", onUp);
-              }}
-            />
+            {/* SQL editor — hidden in schemaMode */}
+            {!activeTab.schemaMode && (
+              <>
+                <div style={{ height: sqlEditorHeight, flexShrink: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                  <SqlEditor
+                    value={activeTab.sql}
+                    onChange={(sql) => updateTab(activeTab.id, { sql })}
+                    onRun={handleRun}
+                    loading={activeTab.loading}
+                    connectionId={activeTab.connectionId}
+                    dbType={activeConn?.type}
+                  />
+                </div>
+                <div
+                  style={{ height: 4, cursor: "ns-resize", flexShrink: 0, background: "transparent" }}
+                  className="hover:bg-blue-500/40 transition-colors"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    sqlResizing.current = true;
+                    sqlResizeStartY.current = e.clientY;
+                    sqlResizeStartH.current = sqlEditorHeight;
+                    function onMove(e: MouseEvent) {
+                      if (!sqlResizing.current) return;
+                      setSqlEditorHeight(Math.max(120, Math.min(800, sqlResizeStartH.current + e.clientY - sqlResizeStartY.current)));
+                    }
+                    function onUp() {
+                      sqlResizing.current = false;
+                      window.removeEventListener("mousemove", onMove);
+                      window.removeEventListener("mouseup", onUp);
+                    }
+                    window.addEventListener("mousemove", onMove);
+                    window.addEventListener("mouseup", onUp);
+                  }}
+                />
+              </>
+            )}
 
             {/* Results + console */}
             <SqlResultPanel tab={activeTab!} dataGrid={dataGrid} />
